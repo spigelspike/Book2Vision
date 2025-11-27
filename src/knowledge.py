@@ -186,22 +186,60 @@ def generate_quiz_with_spacy(text, output_path):
 
 def ask_question(context, question):
     """
-    Answers a question based on the book context using DeepSeek.
+    Answers a question based on the book context. Tries DeepSeek first, then Gemini.
     """
-    print(f"Asking DeepSeek: {question}")
+    # Try DeepSeek/OpenRouter first
     api_key = os.getenv("DEEPSEEK_API_KEY")
-    if not api_key:
-        return "DeepSeek API Key not found."
+    if api_key:
+        print(f"Asking DeepSeek: {question}")
+        try:
+            import requests
+            
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "http://localhost:8000",
+                "X-Title": "Book2Vision"
+            }
+            
+            prompt = f"""
+            You are an AI assistant helping a user understand a book.
+            Answer the question based ONLY on the provided context.
+            Keep the answer concise (max 3 sentences).
+            
+            Context: {context[:10000]}...
+            
+            Question: {question}
+            """
+            
+            data = {
+                "model": "deepseek/deepseek-chat",
+                "messages": [
+                    {"role": "user", "content": prompt}
+                ]
+            }
+            
+            response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
+            
+            if response.status_code == 200:
+                result = response.json()
+                return result['choices'][0]['message']['content'].strip()
+            else:
+                print(f"OpenRouter Error: {response.status_code}. Falling back to Gemini.")
+        except Exception as e:
+            print(f"DeepSeek Error: {e}. Falling back to Gemini.")
 
-    try:
-        import requests
+    # Fallback to Gemini
+    return ask_question_with_gemini(context, question)
+
+def ask_question_with_gemini(context, question):
+    print(f"Asking Gemini: {question}")
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return "No API keys available for Q&A."
         
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "http://localhost:8000",
-            "X-Title": "Book2Vision"
-        }
+    try:
+        model = get_gemini_model(capability="text", api_key=api_key)
         
         prompt = f"""
         You are an AI assistant helping a user understand a book.
@@ -213,82 +251,89 @@ def ask_question(context, question):
         Question: {question}
         """
         
-        data = {
-            "model": "deepseek/deepseek-chat",
-            "messages": [
-                {"role": "user", "content": prompt}
-            ]
-        }
-        
-        response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
-        
-        print(f"OpenRouter Status: {response.status_code}")
-        print(f"OpenRouter Response: {response.text}")
-        
-        if response.status_code == 200:
-            result = response.json()
-            return result['choices'][0]['message']['content'].strip()
-        else:
-            return f"Error: {response.status_code} - {response.text}"
-            
+        response = model.generate_content(prompt)
+        return response.text.strip()
     except Exception as e:
-        return f"Error: {str(e)}"
+        return f"Error with Gemini: {str(e)}"
 
 def suggest_questions(context):
     """
-    Suggests 3 interesting questions about the book using DeepSeek.
+    Suggests 2 interesting questions. Tries DeepSeek first, then Gemini.
     """
     print("Generating suggested questions...")
+    
+    # Try DeepSeek/OpenRouter
     api_key = os.getenv("DEEPSEEK_API_KEY")
-    if not api_key:
-        return ["What is this book about?", "Who is the main character?", "What is the main theme?"]
+    if api_key:
+        try:
+            import requests
+            
+            headers = {
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "http://localhost:8000",
+                "X-Title": "Book2Vision"
+            }
+            
+            prompt = f"""
+            Generate 2 interesting questions a reader might ask about this book.
+            Return ONLY a JSON array of strings. Example: ["Question 1?", "Question 2?"]
+            
+            Context: {context[:5000]}...
+            """
+            
+            data = {
+                "model": "deepseek/deepseek-chat",
+                "messages": [
+                    {"role": "user", "content": prompt}
+                ]
+            }
+            
+            response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
+            
+            if response.status_code == 200:
+                result = response.json()
+                content = result['choices'][0]['message']['content'].strip()
+                return parse_json_list(content)
+            else:
+                print(f"OpenRouter Suggestion Error: {response.status_code}. Falling back to Gemini.")
+        except Exception as e:
+            print(f"DeepSeek Suggestion Error: {e}. Falling back to Gemini.")
 
-    try:
-        import requests
+    # Fallback to Gemini
+    return suggest_questions_with_gemini(context)
+
+def suggest_questions_with_gemini(context):
+    print("Using Gemini for Suggested Questions...")
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return ["What is the plot?", "Who are the characters?"]
         
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "http://localhost:8000",
-            "X-Title": "Book2Vision"
-        }
+    try:
+        model = get_gemini_model(capability="text", api_key=api_key)
         
         prompt = f"""
-        Generate 3 interesting questions a reader might ask about this book.
-        Return ONLY a JSON array of strings. Example: ["Question 1?", "Question 2?", "Question 3?"]
+        Generate 2 interesting questions a reader might ask about this book.
+        Return ONLY a JSON array of strings. Example: ["Question 1?", "Question 2?"]
         
         Context: {context[:5000]}...
         """
         
-        data = {
-            "model": "deepseek/deepseek-chat",
-            "messages": [
-                {"role": "user", "content": prompt}
-            ]
-        }
-        
-        response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
-        
-        print(f"OpenRouter Suggestion Status: {response.status_code}")
-        print(f"OpenRouter Suggestion Response: {response.text}")
-        
-        if response.status_code == 200:
-            result = response.json()
-            content = result['choices'][0]['message']['content'].strip()
-            
-            if content.startswith("```json"):
-                content = content[7:]
-            if content.endswith("```"):
-                content = content[:-3]
-                
-            return json.loads(content)
-        else:
-            print(f"DeepSeek Suggestion Error: {response.status_code}")
-            return ["What is the plot?", "Who are the characters?", "What are the themes?"]
-            
+        response = model.generate_content(prompt)
+        return parse_json_list(response.text.strip())
     except Exception as e:
-        print(f"Error suggesting questions: {e}")
-        return ["What is the plot?", "Who are the characters?", "What are the themes?"]
+        print(f"Gemini Suggestion Error: {e}")
+        return ["What is the plot?", "Who are the characters?"]
+
+def parse_json_list(content):
+    try:
+        if content.startswith("```json"):
+            content = content[7:]
+        if content.endswith("```"):
+            content = content[:-3]
+        return json.loads(content)
+    except:
+        return ["What is the plot?", "Who are the characters?"]
 
 def generate_mindmap(text, output_path="mindmap.png"):
     """

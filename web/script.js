@@ -184,14 +184,29 @@ async function fetchStoryContent() {
     }
 }
 
+function safeId(name) {
+    return `img-${name.replace(/[^a-zA-Z0-9]/g, '')}`;
+}
+
 function renderEntities(entities) {
     entitiesList.innerHTML = '';
     entities.forEach(ent => {
-        const [name, role] = ent;
+        // Handle both list and string formats
+        let name, role;
+        if (Array.isArray(ent)) {
+            name = ent[0];
+            role = ent[1] || "Character";
+        } else {
+            name = ent;
+            role = "Character";
+        }
+
         const card = document.createElement('div');
         card.className = 'entity-card';
+        const imgId = safeId(name);
+
         card.innerHTML = `
-            <img src="https://ui-avatars.com/api/?name=${name}&background=random" class="entity-img" id="img-${name.replace(/\s/g, '')}">
+            <img src="https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random" class="entity-img" id="${imgId}">
             <div>
                 <div style="font-weight:bold">${name}</div>
                 <div style="font-size:0.8rem; opacity:0.7">${role}</div>
@@ -200,17 +215,22 @@ function renderEntities(entities) {
         entitiesList.appendChild(card);
 
         // Lazy load real image
-        fetchEntityImage(name);
+        fetchEntityImage(name, imgId);
     });
 }
 
-async function fetchEntityImage(name) {
+async function fetchEntityImage(name, imgId) {
     try {
         const res = await fetch(`${API_BASE}/entity_image/${encodeURIComponent(name)}`);
         const data = await res.json();
         if (data.image_url) {
-            const img = document.getElementById(`img-${name.replace(/\s/g, '')}`);
-            if (img) img.src = data.image_url;
+            const img = document.getElementById(imgId);
+            if (img) {
+                // Add timestamp to force reload
+                img.src = `${data.image_url}?t=${new Date().getTime()}`;
+            } else {
+                console.warn(`Image element ${imgId} not found`);
+            }
         }
     } catch (e) {
         console.error("Entity image error", e);
