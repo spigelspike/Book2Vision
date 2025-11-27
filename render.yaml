@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: book2vision
+    runtime: python
+    plan: free
+    buildCommand: |
+      pip install --upgrade pip
+      pip install -r requirements.txt
+      python -m spacy download en_core_web_sm
+    startCommand: uvicorn src.server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
+    autoDeploy: true
+    healthCheckPath: /docs

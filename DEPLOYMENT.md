@@ -25,9 +25,9 @@
 3. **Add Environment Variables:**
    In Render dashboard, go to Environment and add:
    ```
-   GEMINI_API_KEY=AIzaSyCloq1LJyvNvMij1VjA9sVCMOgqG_Dl9MI
-   ELEVENLABS_API_KEY=sk_5f86b1386ed667e0d7d9b72a23f6f8c3955ae26b3da2422c
-   DEEPSEEK_API_KEY=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
+   GEMINI_API_KEY=your_gemini_api_key_here
+   ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
+   DEEPSEEK_API_KEY=your_deepseek_api_key_here
    ```
 
 4. **Deploy:** Click "Create Web Service"
@@ -48,9 +48,9 @@
 
 3. **Set Environment Variables:**
    ```bash
-   railway variables set GEMINI_API_KEY=AIzaSyCloq1LJyvNvMij1VjA9sVCMOgqG_Dl9MI
-   railway variables set ELEVENLABS_API_KEY=sk_5f86b1386ed667e0d7d9b72a23f6f8c3955ae26b3da2422c
-   railway variables set DEEPSEEK_API_KEY=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
+   railway variables set GEMINI_API_KEY=your_gemini_api_key_here
+   railway variables set ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
+   railway variables set DEEPSEEK_API_KEY=your_deepseek_api_key_here
    ```
 
 ### Option 3: Fly.io (Docker-based)
@@ -66,9 +66,9 @@
 
 3. **Set Secrets:**
    ```bash
-   fly secrets set GEMINI_API_KEY=AIzaSyCloq1LJyvNvMij1VjA9sVCMOgqG_Dl9MI
-   fly secrets set ELEVENLABS_API_KEY=sk_5f86b1386ed667e0d7d9b72a23f6f8c3955ae26b3da2422c
-   fly secrets set DEEPSEEK_API_KEY=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
+   fly secrets set GEMINI_API_KEY=your_gemini_api_key_here
+   fly secrets set ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
+   fly secrets set DEEPSEEK_API_KEY=your_deepseek_api_key_here
    fly deploy
    ```
 
@@ -84,9 +84,9 @@
 
 3. **Set Config:**
    ```bash
-   heroku config:set GEMINI_API_KEY=AIzaSyCloq1LJyvNvMij1VjA9sVCMOgqG_Dl9MI
-   heroku config:set ELEVENLABS_API_KEY=sk_5f86b1386ed667e0d7d9b72a23f6f8c3955ae26b3da2422c
-   heroku config:set DEEPSEEK_API_KEY=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
+   heroku config:set GEMINI_API_KEY=your_gemini_api_key_here
+   heroku config:set ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
+   heroku config:set DEEPSEEK_API_KEY=your_deepseek_api_key_here
    git push heroku main
    ```
 
