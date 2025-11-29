@@ -519,36 +519,6 @@ body {
     }
 
     .settings-group {
-        flex-direction: column;
-        width: 100%;
-        gap: 1rem;
-    }
-
-    .setting-item {
-        width: 100%;
-    }
-
-    .glass-input {
-        width: 100%;
-    }
-
-    /* Stack dashboard columns on tablet/mobile */
-    .dashboard-grid {
-        grid-template-columns: 1fr;
-        height: auto;
-        gap: 1rem;
-    }
-
-    .panel-left,
-    .panel-center,
-    .panel-image {
-        height: auto;
-        max-height: 500px;
-    }
-
-    .control-bar {
-        width: 90%;
-        justify-content: space-around;
         padding: 0.8rem;
         bottom: 1rem;
     }

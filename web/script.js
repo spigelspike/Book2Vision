@@ -372,7 +372,8 @@ async function generateVisuals() {
         injectImages(data.images);
 
     } catch (e) {
-        alert(e.message);
+        console.error("Visuals generation error:", e);
+        alert("Visuals generation failed: " + e.message);
     } finally {
         btn.textContent = originalText;
         btn.disabled = false;
@@ -456,4 +457,10 @@ function showToast(message) {
         toast.classList.remove('show');
         setTimeout(() => toast.remove(), 400);
     }, 3000);
+}
+
+// Mobile Menu
+function toggleMenu() {
+    const navLinks = document.querySelector('.nav-links');
+    navLinks.classList.toggle('active');
 }
