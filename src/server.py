@@ -28,6 +28,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.on_event("startup")
+async def startup_event():
+    print("Starting up Book2Vision...")
+    # Validate critical env vars
+    if not os.getenv("GEMINI_API_KEY"):
+        print("CRITICAL WARNING: GEMINI_API_KEY is not set. AI features will fail.")
+    else:
+        print("GEMINI_API_KEY found.")
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "service": "book2vision"}
+
 # Directories
 UPLOAD_DIR = "temp_upload"
 OUTPUT_DIR = "Book2Vision_Output"
