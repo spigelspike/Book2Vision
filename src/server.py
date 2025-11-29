@@ -172,7 +172,12 @@ async def generate_audio(req: AudioRequest):
         error_details = traceback.format_exc()
         print(f"=== AUDIO GENERATION ERROR ===")
         print(error_details)
-        raise HTTPException(status_code=500, detail=str(e))
+        # Check for common errors
+        if "401" in str(e):
+             raise HTTPException(status_code=500, detail="ElevenLabs API Key is invalid or missing.")
+        if "QuotaExceeded" in str(e):
+             raise HTTPException(status_code=500, detail="ElevenLabs quota exceeded.")
+        raise HTTPException(status_code=500, detail=f"Audio generation failed: {str(e)}")
 
 @app.post("/api/generate/visuals")
 async def generate_visuals(req: VisualsRequest):
