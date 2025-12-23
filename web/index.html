@@ -5,12 +5,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Book2Vision | Transform Your Reading</title>
+    <meta name="description" content="Transform digital books into immersive multimedia experiences with AI.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Playfair+Display:wght@400;700&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@400;700&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=2">
 </head>
 
 <body>
@@ -18,11 +19,12 @@
     <!-- Background Elements -->
     <div class="bg-orb orb-1"></div>
     <div class="bg-orb orb-2"></div>
+    <div class="bg-grid"></div>
 
     <!-- Navbar -->
     <nav class="navbar glass">
-        <div class="logo">Book2Vision(Alpha)</div>
-        <div class="hamburger" onclick="toggleMenu()">
+        <div class="logo">Book2Vision <span class="badge">Beta</span></div>
+        <div class="hamburger" onclick="toggleMenu()" aria-label="Toggle menu">
             <span></span>
             <span></span>
             <span></span>
@@ -34,21 +36,25 @@
         </div>
     </nav>
 
+    <!-- Toast Notification Container -->
+    <div id="toast-container"></div>
+
     <!-- Hero / Upload Section -->
-    <section id="hero" class="container">
+    <section id="hero" class="container fade-in">
         <div class="hero-content">
             <h1>Experience Books <br> Like Never Before</h1>
             <p>Turn any PDF into an immersive multimedia journey with AI-powered narration and visualization.</p>
 
-            <div class="upload-zone glass" id="drop-zone">
+            <div class="upload-zone glass" id="drop-zone" role="button" tabindex="0" aria-label="Upload book area">
                 <div class="upload-icon">📂</div>
                 <h3>Drag & Drop your book here</h3>
                 <p>Supports PDF, EPUB, TXT</p>
-                <input type="file" id="file-input" hidden>
+                <input type="file" id="file-input" hidden accept=".pdf,.epub,.txt">
                 <button class="btn-primary" onclick="document.getElementById('file-input').click()">Browse
                     Files</button>
             </div>
-            <div id="upload-status" class="hidden">
+
+            <div id="upload-status" class="hidden fade-in">
                 <!-- From Uiverse.io by anand_4957 -->
                 <div class="book">
                     <div class="book__pg-shadow"></div>
@@ -58,13 +64,14 @@
                     <div class="book__pg book__pg--4"></div>
                     <div class="book__pg book__pg--5"></div>
                 </div>
-                <p style="margin-top: 2rem;">Analyzing your book...</p>
+                <p style="margin-top: 2rem; font-weight: 500;">Analyzing your book...</p>
+                <p class="status-detail" id="status-detail">Extracting text and identifying characters...</p>
             </div>
         </div>
     </section>
 
     <!-- Dashboard (Hidden initially) -->
-    <section id="dashboard" class="container hidden">
+    <section id="dashboard" class="container hidden fade-in">
 
         <!-- Top Bar: Book Info & Settings -->
         <div class="dashboard-header glass">
@@ -72,51 +79,47 @@
                 <h2 id="book-title">Book Title</h2>
                 <p id="book-author">Author Name</p>
             </div>
-            <div class="settings-group">
-                <div class="setting-item">
-                    <label>Voice ID</label>
-                    <input type="text" id="voice-id-input" class="glass-input" value="21m00Tcm4TlvDq8ikWAM"
-                        placeholder="Enter Voice ID" style="width: 150px;">
+
+            <div class="controls-group">
+                <div class="control-item">
+                    <label for="audio-provider">Audio Provider</label>
+                    <select id="audio-provider" class="glass-input">
+                        <option value="deepgram">Deepgram (Fast)</option>
+                        <option value="elevenlabs">ElevenLabs (High Quality)</option>
+                        <option value="inbuilt">Inbuilt (Free)</option>
+                    </select>
                 </div>
 
-                <div class="setting-item">
-                    <label>Stability: <span id="stability-val">0.5</span></label>
-                    <input type="range" id="stability-range" min="0" max="1" step="0.05" value="0.5">
-                </div>
-
-                <div class="setting-item">
-                    <label>Similarity: <span id="similarity-val">0.75</span></label>
-                    <input type="range" id="similarity-range" min="0" max="1" step="0.05" value="0.75">
-                </div>
-
-                <div class="setting-item">
-                    <label>Style: <span id="style-val">0.0</span></label>
-                    <input type="range" id="style-range" min="0" max="1" step="0.05" value="0.0">
-                </div>
-
-                <div class="setting-item">
-                    <label>Boost</label>
-                    <input type="checkbox" id="speaker-boost-check" checked>
-                </div>
-
-                <div class="setting-item">
-                    <label>Art Style</label>
+                <div class="control-item">
+                    <label for="style-select">Art Style</label>
                     <select id="style-select" class="glass-input">
                         <option value="storybook">Storybook</option>
                         <option value="cinematic">Cinematic</option>
                         <option value="anime">Anime</option>
                         <option value="watercolor">Watercolor</option>
+                        <option value="cyberpunk">Cyberpunk</option>
+                        <option value="fantasy">Fantasy</option>
                     </select>
                 </div>
+
+                <button class="btn-icon" onclick="toggleSettings()" title="Advanced Settings">⚙️</button>
             </div>
+
+
         </div>
 
         <div class="dashboard-grid">
             <!-- Left: Entities -->
             <div class="panel-left glass">
-                <h3>Characters</h3>
+                <div class="panel-header">
+                    <h3>Characters</h3>
+                    <span class="badge-count" id="entity-count">0</span>
+                </div>
                 <div id="entities-list" class="entities-grid">
                     <!-- Entities injected here -->
+                    <div class="skeleton-card"></div>
+                    <div class="skeleton-card"></div>
+                    <div class="skeleton-card"></div>
                 </div>
             </div>
 
@@ -124,54 +127,98 @@
             <div class="panel-center">
                 <!-- Audio Player -->
                 <div class="audio-player-ui glass">
+                    <div class="bg-waveform">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
                     <div class="player-header">
                         <h3>Audiobook Player</h3>
-                        <button id="btn-audio" class="btn-sm">Generate Audio</button>
+                        <button id="btn-audio" class="btn-sm">
+                            <span class="icon">🎧</span> Generate Audio
+                        </button>
                     </div>
-                    <div class="progress-container">
+
+                    <div class="audio-visualizer">
+                        <!-- Simple CSS visualizer bars -->
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                        <div class="bar"></div>
+                    </div>
+
+                    <div class="progress-container" id="progress-container">
                         <div class="progress-bar" id="audio-progress"></div>
+                        <div class="progress-hover" id="progress-hover"></div>
                     </div>
+
+                    <div class="time-display">
+                        <span id="current-time">0:00</span> / <span id="total-time">0:00</span>
+                    </div>
+
                     <div class="player-controls">
-                        <button class="btn-control" onclick="skip(-15)">↺ 15s</button>
-                        <button class="btn-play" id="btn-play-pause" onclick="toggleAudio()">▶</button>
-                        <button class="btn-control" onclick="skip(15)">15s ↻</button>
+                        <button class="btn-control" onclick="skip(-15)" aria-label="Rewind 15 seconds">↺ 15s</button>
+                        <button class="btn-play" id="btn-play-pause" aria-label="Play or Pause">▶</button>
+                        <button class="btn-control" onclick="skip(15)" aria-label="Forward 15 seconds">15s ↻</button>
                     </div>
-                    <div class="time-display">0:00 / 0:00</div>
+
                     <!-- Hidden audio element for logic -->
                     <audio id="audio-player" hidden></audio>
                 </div>
 
                 <!-- Q&A Section -->
-                <div class="qa-section glass">
-                    <h3>Ask the Book</h3>
-                    <div class="qa-input-wrapper">
-                        <input type="text" placeholder="Ask a question about the story..." class="glass-input qa-input">
-                        <button class="btn-send">→</button>
-                    </div>
-                    <div class="qa-suggestions">
-                        <span class="chip">Why was Rex scared?</span>
-                        <span class="chip">What happened after the meteor?</span>
-                    </div>
-                    <div class="qa-answer hidden" id="qa-answer">
-                        <strong>Answer:</strong> <span id="qa-text">Rex was brave because...</span>
-                    </div>
-                </div>
             </div>
 
             <!-- Right: Generated Image -->
             <div class="panel-image glass">
                 <div class="player-header">
-                    <h3>Generated Image</h3>
-                    <button id="btn-visuals" class="btn-sm">Generate</button>
+                    <h3>Visuals</h3>
+                    <button id="btn-visuals" class="btn-sm">
+                        <span class="icon">🎨</span> Generate
+                    </button>
                 </div>
                 <div class="image-display" id="image-display">
-                    <div class="placeholder-text">Generating visuals...</div>
+                    <div class="placeholder-content">
+                        <div class="icon-large">🖼️</div>
+                        <p>Generate visuals to see the story come to life.</p>
+                    </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <script src="script.js"></script>
+    <!-- Chatbot Widget -->
+    <div id="chatbot-widget" class="chatbot-window glass hidden">
+        <div class="chatbot-header">
+            <h3>Ask Book</h3>
+            <button class="btn-icon" onclick="toggleChat()">✕</button>
+        </div>
+        <div class="qa-chat-container" id="qa-chat-container">
+            <div class="chat-message system">
+                Ask any question about the plot, characters, or themes!
+            </div>
+        </div>
+        <div class="qa-suggestions" id="qa-suggestions"></div>
+        <div class="qa-input-wrapper">
+            <input type="text" id="qa-input" placeholder="Ask a question..." class="glass-input qa-input"
+                autocomplete="off">
+            <button class="btn-send" id="btn-send-qa">➤</button>
+        </div>
+    </div>
+
+    <button id="chatbot-fab" class="chatbot-fab btn-primary hidden" onclick="toggleChat()">
+        💬
+    </button>
+
+    <script src="script.js?v=3"></script>
 </body>
 
 </html>

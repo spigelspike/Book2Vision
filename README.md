@@ -13,11 +13,35 @@
     python -m spacy download en_core_web_sm
     ```
 
-## Usage
+## Configuration
+
+1.  Clone the repository.
+2.  Create a virtual environment:
+    ```bash
+    python -m venv venv
+    source venv/bin/activate  # On Windows: venv\Scripts\activate
+    ```
+3.  Install dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
+4.  Install Spacy model:
+    ```bash
+    python -m spacy download en_core_web_sm
+    ```
+5.  Create a `.env` file in the root directory and add your API keys (see `.env.example`):
+    ```env
+    GEMINI_API_KEY=your_key_here
+    ELEVENLABS_API_KEY=your_key_here
+    # Add other keys as needed
+    ```
+
+## How to Run
 
 1.  Start the server:
     ```bash
-    uvicorn src.server:app --host 0.0.0.0 --port 8000 --reload
+    python src/server.py
     ```
+   
 2.  Open your browser and navigate to `http://localhost:8000`.
 3.  Upload a book to start the transformation.

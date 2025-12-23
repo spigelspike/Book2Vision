@@ -83,7 +83,7 @@ def generate_quiz_with_deepseek(text, output_path):
             ]
         }
         
-        response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
+        response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data, timeout=30)
         
         print(f"OpenRouter Suggestion Status: {response.status_code}")
         print(f"OpenRouter Suggestion Response: {response.text}")
@@ -219,7 +219,7 @@ def ask_question(context, question):
                 ]
             }
             
-            response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
+            response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data, timeout=30)
             
             if response.status_code == 200:
                 result = response.json()
@@ -289,7 +289,7 @@ def suggest_questions(context):
                 ]
             }
             
-            response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
+            response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data, timeout=30)
             
             if response.status_code == 200:
                 result = response.json()
