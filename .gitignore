@@ -7,7 +7,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
-env/
+
 venv/
 ENV/
 *.egg-info/
@@ -39,3 +39,6 @@ Thumbs.db
 # Sensitive Scripts
 update_env.py
 debug_env.py
+
+# Local Data
+library.json

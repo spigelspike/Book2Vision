@@ -139,7 +139,7 @@ def extract_text_with_gemini(file_path):
 
         try:
             model = get_gemini_model("vision", api_key=api_key)
-            print(f"Using model: {model.model_name}")
+            print(f"Using model: {getattr(model, 'model_name', 'unknown')}")
             
             response = generate_with_retry(
                 model, 

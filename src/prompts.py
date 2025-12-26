@@ -1,36 +1,56 @@
 SSML_PROMPT = """
-You are an advanced SSML generation specialist for high-quality audiobook narration.
+You are an expert audiobook director and SSML specialist.
+Your goal is to transform the text into a deeply engaging, human-like performance.
 
 Your task:
-Rewrite the provided text into natural, human-like spoken narration using SSML, without altering meaning, tone, or story accuracy.
+Rewrite the input text into SSML that sounds like a professional voice actor reading a story, not a robot reading text.
 
-Required SSML Formatting:
-- Wrap the entire output in a single <speak>...</speak> root tag.
-- Use <p> tags for paragraphs and <s> tags when breaking long sentences.
-- Add breathing/pause markers only where they improve natural pacing:
-  <break time="80ms"/> to <break time="200ms"/>.
-- Use <prosody> for small variations:
-  - rate: between -5% and +5%
-  - pitch: between +0% and +3%
-- Use <emphasis level="moderate"> only for a few important words (not more than 1–2 per paragraph).
-- Do NOT insert filler words like “well,” “you know,” etc.
-- Keep names, terminology, and dialogue exactly as in the text.
-- Maintain paragraph structure where applicable.
+Key Guidelines for "Human" Quality:
+1.  **Pacing & Rhythm:**
+    -   Vary the speed. Slow down for dramatic or emotional moments (`rate="-10%"`). Speed up slightly for action or excitement (`rate="+5%"`).
+    -   Use pauses effectively. Don't just pause at commas. Pause for effect before a big reveal or after a heavy statement (`<break time="300ms"/>`).
+2.  **Intonation & Pitch:**
+    -   Use `<prosody pitch="...">` to reflect the mood. Lower pitch slightly for serious/dark moments. Raise it for questions or excitement.
+3.  **Emphasis:**
+    -   Use `<emphasis level="moderate">` to highlight key words, just as a human would stress them.
+4.  **Character Voices (Subtle):**
+    -   If there is dialogue, try to slightly shift the pitch or rate to distinguish the speaker, but keep it subtle.
 
-Performance Style:
-- Comfortable audiobook pacing — not robotic, not dramatic.
-- Convey emotion subtly but clearly through pauses and emphasis.
-- Maintain correct pronunciation for numbers, dates, and names.
+Strict Output Rules:
+-   Wrap everything in `<speak>...</speak>`.
+-   Use `<p>` and `<s>` tags for structure.
+-   **DO NOT** add any extra words, intro, or outro.
+-   **DO NOT** use markdown code blocks. Just return the raw XML string.
 
-Output Rules (IMPORTANT):
-- Output ONLY valid SSML.
-- No markdown, no code blocks, no commentary.
-- Do not add introductory or closing statements.
-- Do not include ellipses unless they appear in the original text.
-
-Here is the input text to convert:
-
+Input Text:
 \"\"\"{text}\"\"\"
+"""
 
-Return ONLY the SSML result, nothing else.
+IMAGE_PROMPT_TEMPLATE = """
+Cinematic shot of {scene_description}, 
+{style} style, highly detailed, dramatic lighting, 
+visual storytelling, 8k resolution, 16:9 aspect ratio, 
+no text, no watermark.
+"""
+
+ENTITY_PROMPT_TEMPLATE = """
+Full body character design of {name} as {role}, 
+{style} style, centered, expressive, detailed clothing, 
+clean background, 8k resolution, no text.
+"""
+
+TITLE_PROMPT_TEMPLATE = """
+Book cover art for "{title}", 
+{style} style, elegant, captivating, 
+room for title text (but no actual text), 
+high quality illustration, 16:9 aspect ratio.
+"""
+
+
+SCENE_PROMPT_TEMPLATE = """
+Cinematic illustration of a key scene: {scene_description},
+Context: {character_context}
+{style} style, highly detailed, dramatic composition, 
+visual storytelling, 8k resolution, 16:9 aspect ratio, 
+no text, no watermark.
 """

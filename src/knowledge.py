@@ -1,14 +1,25 @@
 import json
 import os
 import random
-# import spacy # Moved inside function
+# spaCy imported lazily in load_spacy() to avoid startup overhead if not needed
 from src.config import GEMINI_API_KEY
 import google.generativeai as genai
 from src.gemini_utils import get_gemini_model
 
 nlp = None
 
+def get_referer():
+    """Get HTTP referer URL with correct port from environment."""
+    port = os.getenv("PORT", "8000")
+    return f"http://localhost:{port}"
+
 def load_spacy():
+    """
+    Lazily load spaCy English model for NLP tasks.
+    
+    Returns:
+        Loaded spaCy model or None if loading fails.
+    """
     global nlp
     if nlp is None:
         try:
@@ -16,6 +27,7 @@ def load_spacy():
             nlp = spacy.load("en_core_web_sm")
         except Exception as e:
             print(f"Warning: Spacy load failed: {e}")
+            print("Install with: python -m spacy download en_core_web_sm")
             nlp = None
     return nlp
 
@@ -64,7 +76,7 @@ def generate_quiz_with_deepseek(text, output_path):
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "http://localhost:8000", # Required by OpenRouter
+            "HTTP-Referer": get_referer(),
             "X-Title": "Book2Vision"
         }
         
@@ -83,7 +95,7 @@ def generate_quiz_with_deepseek(text, output_path):
             ]
         }
         
-        response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
+        response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data, timeout=30)
         
         print(f"OpenRouter Suggestion Status: {response.status_code}")
         print(f"OpenRouter Suggestion Response: {response.text}")
@@ -198,7 +210,7 @@ def ask_question(context, question):
             headers = {
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
-                "HTTP-Referer": "http://localhost:8000",
+                "HTTP-Referer": get_referer(),
                 "X-Title": "Book2Vision"
             }
             
@@ -219,7 +231,7 @@ def ask_question(context, question):
                 ]
             }
             
-            response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
+            response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data, timeout=30)
             
             if response.status_code == 200:
                 result = response.json()
@@ -271,7 +283,7 @@ def suggest_questions(context):
             headers = {
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
-                "HTTP-Referer": "http://localhost:8000",
+                "HTTP-Referer": get_referer(),
                 "X-Title": "Book2Vision"
             }
             
@@ -289,7 +301,7 @@ def suggest_questions(context):
                 ]
             }
             
-            response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
+            response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data, timeout=30)
             
             if response.status_code == 200:
                 result = response.json()

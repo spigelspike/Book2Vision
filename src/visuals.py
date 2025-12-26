@@ -1,52 +1,143 @@
-import os
-# from moviepy.editor import ImageClip, AudioFileClip, ConcatenateVideoclips
-# import moviepy.editor as mp
-
-# from openai import OpenAI
-# from src.config import OPENAI_API_KEY, IMAGE_MODEL, IMAGE_SIZE, IMAGE_QUALITY
-import requests
+import aiohttp
+import asyncio
 import os
 import urllib.parse
-
 import re
 import random
+import logging
+import time
 
-def generate_entity_image(entity_name, entity_role, output_dir, seed=None):
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Rate limiting configuration
+MAX_CONCURRENT_REQUESTS = 1  # Single request to strictly avoid API rate limits
+MAX_RETRY_ATTEMPTS = 5  # Maximum retries before giving up on image generation
+BASE_RETRY_DELAY_SECONDS = 2  # Initial delay between retries (grows exponentially)
+INTER_REQUEST_DELAY_SECONDS = 2  # Delay between retry attempts for failed requests
+
+class RateLimitController:
+    def __init__(self, max_concurrent=2):
+        self.semaphore = asyncio.Semaphore(max_concurrent)
+        self.global_backoff_until = 0.0
+        self.backoff_lock = asyncio.Lock()
+
+    async def wait_if_needed(self):
+        """Checks if we are in a global backoff period and waits if so."""
+        while True:
+            now = time.time()
+            if now < self.global_backoff_until:
+                wait_time = self.global_backoff_until - now
+                # Add a tiny buffer to ensure we don't wake up slightly too early
+                await asyncio.sleep(wait_time + 0.1)
+            else:
+                break
+
+    async def trigger_backoff(self, wait_time):
+        """Updates the global backoff timestamp safely."""
+        async with self.backoff_lock:
+            new_target = time.time() + wait_time
+            # Only extend if the new target is further in the future
+            if new_target > self.global_backoff_until:
+                self.global_backoff_until = new_target
+                print(f"🛑 Global backoff triggered. Pausing all requests for {wait_time:.1f}s...")
+
+# Initialize global controller with configured concurrency limit
+rate_limiter = RateLimitController(max_concurrent=MAX_CONCURRENT_REQUESTS)
+
+async def generate_entity_image(entity_name, entity_role, output_dir, seed=None):
     """
-    Generates a circular-ready avatar image for an entity.
+    Generates a circular-ready avatar image for an entity (Async).
     """
     if seed is None:
         seed = random.randint(0, 10000)
         
     prompt = (
         f"Close-up portrait of {entity_name} as {entity_role}, "
-        f"centered character, facing the viewer, storybook illustration style, "
-        f"cute, expressive, highly detailed, soft diffused lighting, "
+        f"centered character, facing the viewer, photorealistic, cinematic lighting, "
+        f"8k resolution, highly detailed, realistic texture, "
         f"clean plain white background, no text, no logo, no watermark, "
         f"framed to work well as a circular avatar."
     )
     encoded_prompt = urllib.parse.quote(prompt)
     
-    image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?model=flux&seed={seed}&width=512&height=512&nologo=true"
+    # Use default model (no model param) for better reliability
+    image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed}&width=512&height=512&nologo=true"
     
     safe_name = re.sub(r'[\\/*?:"<>|\n\r]', "_", entity_name)
     filename = f"entity_{safe_name}.jpg"
     img_path = os.path.join(output_dir, filename)
     
-    try:
-        response = requests.get(image_url)
-        if response.status_code == 200:
-            with open(img_path, 'wb') as handler:
-                handler.write(response.content)
-            return img_path
-    except Exception as e:
-        print(f"Error generating entity image for {entity_name}: {e}")
-        return None
+    return await _download_image_async(image_url, img_path, f"Entity: {entity_name}")
 
-def generate_images(semantic_map, output_dir, style="storybook", seed=None, title=None):
+async def _download_image_async(url, output_path, description):
     """
-    Generates images based on semantic analysis using Pollinations.ai (Free).
-    All images are generated in 16:9 aspect ratio (1920x1080).
+    Helper to download an image asynchronously with semaphore, retries, and exponential backoff.
+    """
+    async with rate_limiter.semaphore:
+        for attempt in range(MAX_RETRY_ATTEMPTS):
+            # 1. Check global backoff before starting
+            await rate_limiter.wait_if_needed()
+            
+            try:
+                # 90s timeout for the request itself
+                timeout = aiohttp.ClientTimeout(total=90)
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    print(f"Starting generation for: {description} (Attempt {attempt+1})")
+                    async with session.get(url) as response:
+                        if response.status == 200:
+                            content = await response.read()
+                            with open(output_path, 'wb') as handler:
+                                handler.write(content)
+                            print(f"✅ Saved: {output_path}")
+                            return output_path
+                        
+                        elif response.status == 429:
+                            # Rate limit hit!
+                            # Calculate backoff: 2s, 4s, 8s, 16s, 32s + jitter
+                            base_wait = (2 ** (attempt + 1))
+                            jitter = random.uniform(0, 1)
+                            wait_time = base_wait + jitter
+                            
+                            print(f"⚠️ Rate limit (429) for {description}. Triggering global backoff for {wait_time:.1f}s...")
+                            
+                            # Trigger global backoff so other tasks stop
+                            await rate_limiter.trigger_backoff(wait_time)
+                            
+                            # We also wait here (redundant but safe, loop will check wait_if_needed anyway)
+                            await asyncio.sleep(wait_time)
+                            
+                        else:
+                            print(f"⚠️ Failed to download {description}: {response.status}")
+                            # Retry on 5xx errors
+                            if 500 <= response.status < 600:
+                                wait_time = (2 ** (attempt + 1)) + random.uniform(0, 1)
+                                await asyncio.sleep(wait_time)
+                            else:
+                                # 4xx errors (other than 429) are likely permanent
+                                return None
+                                
+            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                wait_time = (2 ** (attempt + 1)) + random.uniform(0, 1)
+                print(f"❌ Error generating {description} (Attempt {attempt+1}): {e}. Retrying in {wait_time:.1f}s...")
+                await asyncio.sleep(wait_time)
+            except Exception as e:
+                print(f"❌ Unexpected error for {description}: {e}")
+                return None
+        
+        # Add minimal delay only between actual retry attempts (not after success)
+        if attempt < (MAX_RETRY_ATTEMPTS - 1):
+            await asyncio.sleep(INTER_REQUEST_DELAY_SECONDS)
+                
+    print(f"❌ Failed to generate {description} after all attempts.")
+    return None
+
+from src.prompts import IMAGE_PROMPT_TEMPLATE, ENTITY_PROMPT_TEMPLATE, TITLE_PROMPT_TEMPLATE, SCENE_PROMPT_TEMPLATE
+
+async def generate_images(semantic_map, output_dir, style="manga", seed=None, title=None):
+    """
+    Generates images based on semantic analysis using Pollinations.ai (Async).
     """
     images = []
     
@@ -54,52 +145,56 @@ def generate_images(semantic_map, output_dir, style="storybook", seed=None, titl
         seed = random.randint(0, 10000)
     
     print(f"Generating images with style: {style} (Seed: {seed})")
-
-    # 1. Generate Title Page (if title is provided)
-    if title:
-        print(f"Generating Title Page for: {title}")
-        try:
-            if style == "storybook":
-                prompt = (
-                    f"Front book cover for a children's story titled '{title}', "
-                    f"whimsical storybook illustration style, bright and colorful, "
-                    f"magical and inviting atmosphere, soft lighting, decorative border, "
-                    f"ample clean space for bold readable title text in the center, "
-                    f"no logo, no watermark, 16:9 aspect ratio."
-                )
-            else:
-                prompt = (
-                    f"Cinematic book or movie poster for a story titled '{title}', "
-                    f"dramatic composition, strong focal point, high contrast, "
-                    f"atmospheric lighting, realistic or semi-realistic style, "
-                    f"title area clearly visible and readable, ultra detailed, "
-                    f"epic 8k look, no logo, no watermark, 16:9 aspect ratio."
-                )
-            
-            encoded_prompt = urllib.parse.quote(prompt)
-            image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?model=flux&seed={seed}&width=1920&height=1080&nologo=true"
-            
-            response = requests.get(image_url)
-            if response.status_code == 200:
-                safe_title = re.sub(r'[\\/*?:"<>|\n\r]', "_", title)[:50]
-                filename = f"image_00_title_{safe_title}.jpg"
-                img_path = os.path.join(output_dir, filename)
-                
-                with open(img_path, 'wb') as handler:
-                    handler.write(response.content)
-                
-                images.append(img_path)
-                print(f"Saved Title Page: {img_path}")
-            else:
-                print(f"Failed to download title page: {response.status_code}")
-        except Exception as e:
-            print(f"Error generating title page: {e}")
-
-    # 2. Generate Entity Images
-    entities = semantic_map.get("entities", [])[:5]
-    scenes = semantic_map.get("scenes", [])
     
-    for i, entity in enumerate(entities):
+    tasks = []
+    
+    # 1. Title Page
+    if title:
+        prompt = TITLE_PROMPT_TEMPLATE.format(title=title, style=style)
+        encoded_prompt = urllib.parse.quote(prompt)
+        # Reduced resolution for reliability
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed}&width=1280&height=720&nologo=true"
+        
+        safe_title = "".join([c if c.isalnum() else "_" for c in title])[:50]
+        filename = f"image_00_title_{safe_title}.jpg"
+        img_path = os.path.join(output_dir, filename)
+        
+        tasks.append(_download_image_async(image_url, img_path, "Title Page"))
+
+    # 2. Scene Images
+    scenes = semantic_map.get("scenes", [])
+    entities = semantic_map.get("entities", [])
+    
+    # Build Character Context
+    char_context = []
+    for ent in entities:
+        name = ent[0] if len(ent) > 0 else "Unknown"
+        desc = ent[2] if len(ent) > 2 else ""
+        if desc:
+            char_context.append(f"{name} ({desc})")
+        else:
+            char_context.append(name)
+    
+    context_str = ", ".join(char_context)
+    
+    for i, scene_desc in enumerate(scenes):
+        prompt = SCENE_PROMPT_TEMPLATE.format(
+            scene_description=scene_desc, 
+            character_context=context_str,
+            style=style
+        )
+        encoded_prompt = urllib.parse.quote(prompt)
+        # Reduced resolution
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed+200+i}&width=1280&height=720&nologo=true"
+        
+        filename = f"image_01_scene_{i+1:02d}.jpg"
+        img_path = os.path.join(output_dir, filename)
+        
+        tasks.append(_download_image_async(image_url, img_path, f"Scene {i+1}"))
+
+    # 3. Entity Images
+    top_entities = entities[:3]
+    for i, entity in enumerate(top_entities):
         if isinstance(entity, list) and len(entity) >= 2:
             name, role = entity[0], entity[1]
         elif isinstance(entity, tuple) and len(entity) >= 2:
@@ -108,47 +203,23 @@ def generate_images(semantic_map, output_dir, style="storybook", seed=None, titl
             name = str(entity)
             role = "Character"
         
-        prompt = (
-            f"Full or mid-shot illustration of {name} as {role}, "
-            f"{style} style, highly detailed, vibrant colors, "
-            f"clear character design, expressive pose, visually appealing background, "
-            f"cinematic 16:9 composition, no text, no logo, no watermark."
-        )
+        prompt = ENTITY_PROMPT_TEMPLATE.format(name=name, role=role, style=style)
         encoded_prompt = urllib.parse.quote(prompt)
-        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?model=flux&seed={seed+i+1}&width=1920&height=1080&nologo=true"
+        # Reduced resolution
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed+i+1}&width=1280&height=720&nologo=true"
         
-        try:
-            response = requests.get(image_url)
-            if response.status_code == 200:
-                safe_name = re.sub(r'[\\/*?:"<>|\n\r]', "_", name)[:30]
-                filename = f"image_{i+1:02d}_entity_{safe_name}.jpg"
-                img_path = os.path.join(output_dir, filename)
-                
-                with open(img_path, 'wb') as handler:
-                    handler.write(response.content)
-                
-                images.append(img_path)
-                print(f"Saved entity image: {img_path}")
-            else:
-                print(f"Failed to download image for {name}: {response.status_code}")
-        except Exception as e:
-            print(f"Error generating image for {name}: {e}")
-            
-    return images
+        safe_name = "".join([c if c.isalnum() else "_" for c in name])[:30]
+        filename = f"image_02_entity_{safe_name}.jpg"
+        img_path = os.path.join(output_dir, filename)
+        
+        tasks.append(_download_image_async(image_url, img_path, f"Entity: {name}"))
 
-def generate_video(summary_text, audio_path, image_paths, output_path="video.mp4"):
-    """
-    Generates a video summary.
-    """
-    print("Generating video...")
-    try:
-        # Placeholder for moviepy logic
-        # audio = AudioFileClip(audio_path)
-        # clip = ImageClip(image_paths[0]).set_duration(audio.duration)
-        # clip = clip.set_audio(audio)
-        # clip.write_videofile(output_path, fps=24)
-        print(f"Video generation logic would run here. Output: {output_path}")
-        return output_path
-    except Exception as e:
-        print(f"Error generating video: {e}")
-        return None
+    # Execute all tasks
+    print(f"Starting async generation of {len(tasks)} images...")
+    results = await asyncio.gather(*tasks)
+    
+    # Filter out None results and sort
+    images = [img for img in results if img]
+    images.sort()
+    
+    return images

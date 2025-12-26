@@ -1,50 +1,70 @@
-# import spacy # Moved inside function
+
 from collections import Counter
 import json
 import os
+import re
 import google.generativeai as genai
 from src.config import GEMINI_API_KEY
 from src.gemini_utils import get_gemini_model
 
-nlp = None
-
-def load_spacy():
-    global nlp
-    if nlp is None:
-        try:
-            import spacy
-            nlp = spacy.load("en_core_web_sm")
-        except Exception as e:
-            print(f"Warning: Spacy load failed: {e}")
-            nlp = None
-    return nlp
+# Compile regex pattern once for performance
+CAPITALIZED_PATTERN = re.compile(r'\b[A-Z][a-z]+\b')
 
 def semantic_analysis(text):
     """
     Performs semantic analysis to extract entities and key concepts.
-    Uses Gemini Pro if available, else Spacy.
+    Priority: Gemini -> Basic Regex
     """
-    # Fetch dynamically
+    # 1. Try Gemini
     api_key = os.getenv("GEMINI_API_KEY")
-    
+    print(f"=== SEMANTIC ANALYSIS DEBUG ===")
+    print(f"API Key present: {bool(api_key)}")
     if api_key:
-        return semantic_analysis_with_llm(text, api_key)
-        
-    nlp_model = load_spacy()
-    if not nlp_model:
-        return {"entities": [], "keywords": []}
+        result = semantic_analysis_with_llm(text, api_key)
+        # If successful and has entities, return it
+        if result and result.get("summary") != "Analysis failed." and result.get("entities"):
+            print(f"✅ Gemini analysis succeeded. Found {len(result.get('entities', []))} entities.")
+            return result
+        print(f"❌ Gemini analysis failed or returned no entities. Result: {result}")
+        print("Falling back...")
+
+
+    # 3. Basic Regex Fallback
+    print("Falling back to Basic Regex Analysis...")
     
-    doc = nlp_model(text[:100000]) # Limit to 100k chars for prototype speed
+    # Limit scan to first 10K characters for performance
+    scan_text = text[:10000]
+    words = CAPITALIZED_PATTERN.findall(scan_text)
     
-    entities = [(ent.text, ent.label_) for ent in doc.ents]
+    common_stops = {
+        "The", "A", "An", "It", "He", "She", "They", "But", "And", "When", "Then", "Suddenly",
+        "Meanwhile", "However", "Although", "Okay", "So", "If", "This", "That", "There", "Here",
+        "What", "Why", "How", "Who", "Where", "Beneath", "Above", "Behind", "Inside", "Outside",
+        "Near", "Far", "Just", "Only", "Very", "Really", "Now", "Later", "Soon", "Yesterday",
+        "Today", "Tomorrow", "Yes", "No", "Please", "Thank", "Thanks", "Hello", "Hi", "Goodbye",
+        "Mr", "Mrs", "Ms", "Dr", "Prof", "Captain", "Sergeant", "General", "King", "Queen",
+        "Prince", "Princess", "Lord", "Lady", "Sir", "Madam", "One", "Two", "Three", "First",
+        "Second", "Third", "Next", "Last", "Finally", "Also", "Besides", "Moreover", "Furthermore",
+        "In", "On", "At", "To", "For", "With", "By", "From", "Of", "About", "As", "Like"
+    }
     
-    # Extract keywords (nouns and proper nouns)
-    keywords = [token.text for token in doc if token.pos_ in ["NOUN", "PROPN"] and not token.is_stop]
-    common_keywords = Counter(keywords).most_common(10)
+    candidates = [w for w in words if w not in common_stops and len(w) > 2]
+    
+    # Count frequency
+    counts = Counter(candidates)
+    
+    # Entity format: [name, role, visual_description]
+    # Empty description for fallback since regex can't infer appearance
+    top_entities = [
+        [name, "Character", ""]  # description blank - not available from regex
+        for name, count in counts.most_common(5)
+    ]
     
     return {
-        "entities": entities,
-        "keywords": common_keywords
+        "summary": text[:200] + "...",
+        "entities": top_entities,
+        "keywords": [],
+        "scenes": ["Scene 1: A key moment from the story."]
     }
 
 def semantic_analysis_with_llm(text, api_key):
@@ -66,26 +86,23 @@ def semantic_analysis_with_llm(text, api_key):
 
         2. ENTITIES (CHARACTERS)
            - Identify the main characters only (3–10 characters).
+           - **CRITICAL**: Include ONLY sentient beings (people, animals, robots).
+           - **DO NOT** include locations, organizations, objects, or abstract concepts (e.g., "London", "The Police", "Love", "Engineering", "College").
            - For each character, provide:
                - Their name as it appears in the text.
                - A short role label (e.g., "protagonist", "antagonist", "friend", "mentor", "villain", "side character").
-           - Represent each character as: ["Character Name", "Role"].
+               - A concise VISUAL DESCRIPTION (e.g., "tall, red curly hair, wears a tattered cloak").
+           - Represent each character as: ["Character Name", "Role", "Visual Description"].
 
         3. THEMES (KEYWORDS)
            - Extract 5–10 main themes of the story.
            - Each theme should be a short phrase of 1–3 words (e.g., "friendship", "betrayal", "coming of age").
            - Do NOT use generic words like "story", "book", "plot".
 
-        4. VISUAL SCENES
-           - Propose EXACTLY 3 scenes that would work well for image generation.
-           - Each scene must be:
-               - A single sentence or two short sentences.
-               - Very visual, describing:
-                   - Setting (where),
-                   - Characters (who),
-                   - Main action (what is happening),
-                   - Important visual details (mood, lighting, key objects).
-           - Avoid camera jargon (no "close-up shot", "frame", etc.).
+        4. KEY SCENES
+           - Identify 3-5 key scenes that visually represent the story.
+           - Each scene should be a descriptive sentence suitable for image generation.
+           - Example: "The hero stands on a cliff overlooking the burning city."
 
         OUTPUT FORMAT (IMPORTANT):
         - Respond with EXACTLY ONE JSON OBJECT.
@@ -98,8 +115,8 @@ def semantic_analysis_with_llm(text, api_key):
         {{
             "summary": "brief plot summary here",
             "entities": [
-                ["Character Name 1", "Role 1"],
-                ["Character Name 2", "Role 2"]
+                ["Character Name 1", "Role 1", "Visual Description 1"],
+                ["Character Name 2", "Role 2", "Visual Description 2"]
             ],
             "keywords": [
                 "theme1",
@@ -107,9 +124,9 @@ def semantic_analysis_with_llm(text, api_key):
                 "theme3"
             ],
             "scenes": [
-                "Scene description 1",
-                "Scene description 2",
-                "Scene description 3"
+                "Description of scene 1...",
+                "Description of scene 2...",
+                "Description of scene 3..."
             ]
         }}
 
@@ -130,7 +147,9 @@ def semantic_analysis_with_llm(text, api_key):
         return json.loads(response_text)
         
     except Exception as e:
+        import traceback
         print(f"Gemini Analysis Failed: {e}")
+        traceback.print_exc()
         return {"summary": "Analysis failed.", "entities": [], "keywords": []}
 
 
