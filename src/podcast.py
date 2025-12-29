@@ -38,7 +38,7 @@ HOSTS = {
             stability=0.4,  # More variable for excitement
             similarity_boost=0.8,
             style=0.6,  # Higher style for personality
-            speaking_rate=1.1  # Slightly faster
+            speaking_rate=1.0  # Slowed down from 1.1
         )
     ),
     "Emma": HostProfile(
@@ -51,7 +51,7 @@ HOSTS = {
             stability=0.6,  # More controlled
             similarity_boost=0.75,
             style=0.2,  # Subtle style
-            speaking_rate=1.0
+            speaking_rate=0.9  # Slowed down from 1.0
         )
     )
 }
@@ -500,7 +500,8 @@ class PodcastGenerator:
                 stability=voice.stability,
                 similarity_boost=voice.similarity_boost,
                 style=voice.style,
-                provider=provider
+                provider=provider,
+                speaking_rate=voice.speaking_rate
             )
             tasks.append((task, i + 1, total_segments, speaker))
         

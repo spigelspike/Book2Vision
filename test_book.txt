@@ -1,0 +1,6 @@
+This is a test book for the Book2Vision library.
+It contains sample text to demonstrate the reading and audio generation capabilities.
+Chapter 1
+The quick brown fox jumps over the lazy dog.
+Chapter 2
+Lorem ipsum dolor sit amet.

@@ -847,25 +847,38 @@ function renderLibrary() {
         card.className = 'book-card glass fade-in-element';
 
         // Format date
-        const date = new Date(book.upload_date * 1000).toLocaleDateString();
+        const date = new Date(book.upload_date * 1000).toLocaleDateString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
 
-        let thumbContent = `<div class="book-card-icon">📖</div>`;
+        let thumbContent = `<div class="book-card-placeholder-icon">📖</div>`;
         if (book.thumbnail) {
-            thumbContent = `<img src="/api/assets/${book.thumbnail}" alt="${book.title}" class="book-card-img">`;
+            thumbContent = `<img src="/api/assets/${book.thumbnail}" alt="${book.title}" class="book-card-img" loading="lazy">`;
         }
 
         card.innerHTML = `
-            <div class="book-card-thumb">
+            <div class="book-card-cover-area">
                 ${thumbContent}
+                <div class="book-card-overlay">
+                    <button class="btn-icon-glass" onclick="openBook('${book.id}')" title="Read Book">
+                        <span style="font-size: 1.5rem;">▶</span>
+                    </button>
+                </div>
+                <button class="btn-delete-absolute" onclick="deleteBook('${book.id}')" title="Delete Book">×</button>
             </div>
-            <div class="book-card-info">
-                <h3 class="book-card-title">${book.title}</h3>
-                <p class="book-card-author">${book.author}</p>
-                <p class="book-card-date">Added ${date}</p>
-            </div>
-            <div class="book-card-actions">
-                <button class="btn-sm" onclick="openBook('${book.id}')">Open</button>
-                <button class="btn-icon-sm" onclick="deleteBook('${book.id}')" title="Delete">🗑️</button>
+            
+            <div class="book-card-content">
+                <div class="book-card-meta">
+                    <h3 class="book-card-title" title="${book.title}">${book.title}</h3>
+                    <p class="book-card-author">${book.author}</p>
+                </div>
+                
+                <div class="book-card-footer">
+                    <span class="book-date">${date}</span>
+                    <button class="btn-text-action" onclick="openBook('${book.id}')">Open Library →</button>
+                </div>
             </div>
         `;
         grid.appendChild(card);

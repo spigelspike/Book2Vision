@@ -87,40 +87,40 @@ async def generate_audio_deepgram(text, output_path, voice_id="21m00Tcm4TlvDq8ik
         print(f"❌ Deepgram failed: {e}")
         raise e
 
-async def generate_audio(text, output_path="audiobook.mp3", voice_id="21m00Tcm4TlvDq8ikWAM", stability=0.5, similarity_boost=0.75, style=0.0, use_speaker_boost=True, provider="elevenlabs"):
+async def generate_audio(text, output_path="audiobook.mp3", voice_id="21m00Tcm4TlvDq8ikWAM", stability=0.5, similarity_boost=0.75, style=0.0, use_speaker_boost=True, provider="elevenlabs", speaking_rate=1.0):
     """
     Generates audio using the specified provider with automatic fallback.
     Priority: Deepgram -> Edge TTS (inbuilt)
     """
-    print(f"🎵 Generating audio with provider: {provider}")
+    print(f"🎵 Generating audio with provider: {provider} (Rate: {speaking_rate})")
     
     # Deepgram with automatic fallback to edge-tts
     if provider == "deepgram":
         if not DEEPGRAM_API_KEY:
             print("⚠️  Deepgram key missing. Falling back to Inbuilt (Edge TTS).")
-            return await generate_audio_edge(text, output_path, voice_id)
+            return await generate_audio_edge(text, output_path, voice_id, rate=speaking_rate)
         
         try:
             return await generate_audio_deepgram(text, output_path, voice_id)
         except Exception as e:
             print(f"⚠️  Deepgram failed: {e}. Falling back to Inbuilt (Edge TTS).")
-            return await generate_audio_edge(text, output_path, voice_id)
+            return await generate_audio_edge(text, output_path, voice_id, rate=speaking_rate)
     
     # Edge TTS (inbuilt)
     elif provider == "inbuilt":
-        return await generate_audio_edge(text, output_path, voice_id)
+        return await generate_audio_edge(text, output_path, voice_id, rate=speaking_rate)
     
     # ElevenLabs with fallback
     elif provider == "elevenlabs":
         if not ELEVENLABS_API_KEY:
             print("⚠️  ElevenLabs key missing. Falling back to Inbuilt (Edge TTS).")
-            return await generate_audio_edge(text, output_path, voice_id)
+            return await generate_audio_edge(text, output_path, voice_id, rate=speaking_rate)
         return await generate_audio_elevenlabs(text, output_path, voice_id, stability, similarity_boost, style, use_speaker_boost)
     
     # Default fallback
     else:
         print(f"⚠️  Unknown provider '{provider}'. Using Edge TTS.")
-        return await generate_audio_edge(text, output_path, voice_id)
+        return await generate_audio_edge(text, output_path, voice_id, rate=speaking_rate)
 
 async def generate_audio_elevenlabs(text, output_path, voice_id, stability, similarity_boost, style, use_speaker_boost):
     """
@@ -184,13 +184,22 @@ async def generate_audio_elevenlabs(text, output_path, voice_id, stability, simi
         print("Falling back to Edge TTS...")
         return await generate_audio_edge(text, output_path, voice_id)
 
-async def generate_audio_edge(text, output_path, voice_id=None):
+async def generate_audio_edge(text, output_path, voice_id=None, rate=1.0):
     """
     Fallback using edge-tts (free).
     """
     try:
         import edge_tts
-        print(f"Generating audio using Edge TTS...")
+        
+        # Calculate rate string (e.g., "+10%", "-10%")
+        rate_str = "+0%"
+        if rate != 1.0:
+            percent = int((rate - 1.0) * 100)
+            sign = "+" if percent >= 0 else ""
+            rate_str = f"{sign}{percent}%"
+            
+        print(f"Generating audio using Edge TTS (Rate: {rate_str})...")
+        
         # Map ElevenLabs IDs to Edge Voices if possible, or use a default mapping
         edge_voice = "en-US-ChristopherNeural" # Default
         
@@ -202,7 +211,7 @@ async def generate_audio_edge(text, output_path, voice_id=None):
         elif "21m00Tcm4TlvDq8ikWAM" in str(voice_id): # Rachel ID
              edge_voice = "en-US-AriaNeural"
              
-        communicate = edge_tts.Communicate(text, edge_voice)
+        communicate = edge_tts.Communicate(text, edge_voice, rate=rate_str)
         await communicate.save(output_path)
         print(f"Audio saved to {output_path}")
         return output_path

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About Us | Book2Vision</title>
+    <meta name="description" content="Learn more about the team behind Book2Vision.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@400;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=18">
+    <style>
+        .about-hero {
+            text-align: center;
+            padding: var(--space-xl) var(--space-md);
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .about-hero h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 3.5rem;
+            margin-bottom: var(--space-md);
+            background: linear-gradient(135deg, #fff 0%, #ccc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .about-hero p {
+            font-size: 1.2rem;
+            color: var(--text-muted);
+            line-height: 1.8;
+            margin-bottom: var(--space-xl);
+        }
+
+        /* 3D Card Styles */
+        .team-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: var(--space-xl);
+            margin-top: var(--space-xl);
+        }
+
+        .team-card-wrapper {
+            padding: 20px;
+            perspective: 1000px;
+        }
+
+        .team-card {
+            position: relative;
+            padding-top: 50px;
+            border: 3px solid rgba(127, 90, 240, 0.5);
+            transform-style: preserve-3d;
+            background: linear-gradient(135deg, #0000 18.75%, rgba(127, 90, 240, 0.1) 0 31.25%, #0000 0),
+                repeating-linear-gradient(45deg, rgba(127, 90, 240, 0.1) -6.25% 6.25%, rgba(255, 255, 255, 0.05) 0 18.75%);
+            background-size: 60px 60px;
+            background-position: 0 0, 0 0;
+            background-color: rgba(10, 10, 15, 0.8);
+            box-shadow: rgba(127, 90, 240, 0.3) 0px 30px 30px -10px;
+            transition: all 0.5s ease-in-out;
+        }
+
+        .team-card:hover {
+            background-position: -100px 100px, -100px 100px;
+            transform: rotate3d(0.5, 1, 0, 30deg);
+        }
+
+        .team-content-box {
+            background: linear-gradient(135deg, rgba(127, 90, 240, 0.9), rgba(39, 174, 96, 0.8));
+            transition: all 0.5s ease-in-out;
+            padding: 60px 25px 25px 25px;
+            transform-style: preserve-3d;
+            text-align: center;
+        }
+
+        .team-name {
+            display: inline-block;
+            font-family: 'Playfair Display', serif;
+            color: white;
+            font-size: 1.75rem;
+            font-weight: 900;
+            margin-bottom: var(--space-xs);
+            transition: all 0.5s ease-in-out;
+            transform: translate3d(0px, 0px, 50px);
+        }
+
+        .team-name:hover {
+            transform: translate3d(0px, 0px, 60px);
+        }
+
+        .team-role {
+            display: block;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.85rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: var(--space-md);
+            transition: all 0.5s ease-in-out;
+            transform: translate3d(0px, 0px, 40px);
+        }
+
+        .team-role:hover {
+            transform: translate3d(0px, 0px, 50px);
+        }
+
+        .team-bio {
+            margin-top: 10px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.95);
+            line-height: 1.6;
+            transition: all 0.5s ease-in-out;
+            transform: translate3d(0px, 0px, 30px);
+        }
+
+        .team-bio:hover {
+            transform: translate3d(0px, 0px, 50px);
+        }
+
+        .team-avatar-box {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            height: 100px;
+            width: 100px;
+            background: white;
+            border: 3px solid rgb(127, 90, 240);
+            border-radius: 50%;
+            padding: 5px;
+            transform: translate3d(0px, 0px, 80px);
+            box-shadow: rgba(127, 90, 240, 0.4) 0px 17px 10px -10px;
+            overflow: hidden;
+        }
+
+        .team-avatar-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Background Elements -->
+    <div class="bg-orb orb-1" aria-hidden="true"></div>
+    <div class="bg-orb orb-2" aria-hidden="true"></div>
+    <div class="bg-grid" aria-hidden="true"></div>
+
+    <!-- Navbar -->
+    <nav class="navbar glass" aria-label="Main navigation">
+        <div class="logo">Book2Vision <span class="badge">Beta</span></div>
+        <div class="hamburger" onclick="toggleMenu()" aria-label="Toggle menu" role="button" tabindex="0">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+        <div class="nav-links">
+            <a href="index.html">Home</a>
+            <a href="library.html">Library</a>
+            <a href="about.html" class="active" aria-current="page">About us</a>
+        </div>
+    </nav>
+
+    <main>
+        <section class="container fade-in">
+            <div class="about-hero">
+                <h1>Reimagining Reading</h1>
+                <p>
+                    Book2Vision is an experimental project designed to transform how we experience literature.
+                    By combining advanced AI with immersive audio and visuals, we turn static text into
+                    dynamic, multisensory journeys.
+                </p>
+            </div>
+
+            <div class="glass" style="padding: var(--space-xl); border-radius: var(--radius-lg);">
+                <h2 style="text-align: center; margin-bottom: var(--space-lg); font-family: 'Playfair Display', serif;">
+                    Our Mission</h2>
+                <p
+                    style="text-align: center; color: var(--text-muted); max-width: 700px; margin: 0 auto; line-height: 1.8;">
+                    We believe that stories should be experienced, not just read. Our goal is to make literature
+                    more accessible, engaging, and memorable by leveraging the power of generative AI to
+                    create personalized audiobooks and visual accompaniments for any text.
+                </p>
+
+                <div class="team-grid">
+                    <!-- The Creator -->
+                    <div class="team-card-wrapper">
+                        <div class="team-card">
+                            <div class="team-content-box">
+                                <h3 class="team-name">The Creator</h3>
+                                <span class="team-role">Lead Developer</span>
+                                <p class="team-bio">
+                                    Passionate about the intersection of AI and storytelling. Building the future of
+                                    digital reading experiences one line of code at a time.
+                                </p>
+                            </div>
+                            <div class="team-avatar-box">
+                                <img src="/api/assets/team_creator.png" alt="The Creator">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- The Visionary -->
+                    <div class="team-card-wrapper">
+                        <div class="team-card">
+                            <div class="team-content-box">
+                                <h3 class="team-name">The Visionary</h3>
+                                <span class="team-role">Design Lead</span>
+                                <p class="team-bio">
+                                    Crafting beautiful, intuitive interfaces that get out of the way and let the
+                                    content shine. Obsessed with pixels and user journeys.
+                                </p>
+                            </div>
+                            <div class="team-avatar-box">
+                                <img src="/api/assets/team_visionary.png" alt="The Visionary">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- The AI -->
+                    <div class="team-card-wrapper">
+                        <div class="team-card">
+                            <div class="team-content-box">
+                                <h3 class="team-name">The AI</h3>
+                                <span class="team-role">Core Engine</span>
+                                <p class="team-bio">
+                                    Processing millions of tokens to bring characters to life and visualize
+                                    worlds beyond imagination. Always learning, always improving.
+                                </p>
+                            </div>
+                            <div class="team-avatar-box">
+                                <img src="/api/assets/team_ai.png" alt="The AI">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        function toggleMenu() {
+            const navLinks = document.querySelector('.nav-links');
+            const hamburger = document.querySelector('.hamburger');
+            navLinks.classList.toggle('active');
+            hamburger.classList.toggle('active');
+        }
+    </script>
+</body>
+
+</html>

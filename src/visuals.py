@@ -62,8 +62,8 @@ async def generate_entity_image(entity_name, entity_role, output_dir, seed=None)
     )
     encoded_prompt = urllib.parse.quote(prompt)
     
-    # Use default model (no model param) for better reliability
-    image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed}&width=512&height=512&nologo=true"
+    # Use Flux model for better quality
+    image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed}&width=1024&height=1024&model=flux-realism&nologo=true&enhance=true"
     
     safe_name = re.sub(r'[\\/*?:"<>|\n\r]', "_", entity_name)
     filename = f"entity_{safe_name}.jpg"
@@ -152,8 +152,8 @@ async def generate_images(semantic_map, output_dir, style="manga", seed=None, ti
     if title:
         prompt = TITLE_PROMPT_TEMPLATE.format(title=title, style=style)
         encoded_prompt = urllib.parse.quote(prompt)
-        # Reduced resolution for reliability
-        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed}&width=1280&height=720&nologo=true"
+        # Use Flux model, 1080p resolution
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed}&width=1920&height=1080&model=flux&nologo=true&enhance=true"
         
         safe_title = "".join([c if c.isalnum() else "_" for c in title])[:50]
         filename = f"image_00_title_{safe_title}.jpg"
@@ -184,8 +184,8 @@ async def generate_images(semantic_map, output_dir, style="manga", seed=None, ti
             style=style
         )
         encoded_prompt = urllib.parse.quote(prompt)
-        # Reduced resolution
-        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed+200+i}&width=1280&height=720&nologo=true"
+        # Use Flux model, 1080p resolution
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed+200+i}&width=1920&height=1080&model=flux&nologo=true&enhance=true"
         
         filename = f"image_01_scene_{i+1:02d}.jpg"
         img_path = os.path.join(output_dir, filename)
@@ -205,8 +205,8 @@ async def generate_images(semantic_map, output_dir, style="manga", seed=None, ti
         
         prompt = ENTITY_PROMPT_TEMPLATE.format(name=name, role=role, style=style)
         encoded_prompt = urllib.parse.quote(prompt)
-        # Reduced resolution
-        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed+i+1}&width=1280&height=720&nologo=true"
+        # Use Flux Realism for entities, square aspect ratio
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed+i+1}&width=1024&height=1024&model=flux-realism&nologo=true&enhance=true"
         
         safe_name = "".join([c if c.isalnum() else "_" for c in name])[:30]
         filename = f"image_02_entity_{safe_name}.jpg"
