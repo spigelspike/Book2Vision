@@ -45,14 +45,14 @@ async def test_visuals():
     
     print("\n-- Testing Scene Generation --")
     try:
-        images = generate_images(semantic_map, output_dir, style="storybook")
+        images = await generate_images(semantic_map, output_dir, style="storybook")
         print(f"✅ Generated {len(images)} images")
     except Exception as e:
         print(f"❌ Visuals Generation Failed: {e}")
 
     print("\n-- Testing Entity Image Generation --")
     try:
-        img = generate_entity_image("Alice", "Protagonist", output_dir)
+        img = await generate_entity_image("Alice", "Protagonist", output_dir)
         if img:
             print(f"✅ Entity Image Success: {img}")
         else:

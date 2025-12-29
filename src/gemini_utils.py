@@ -1,10 +1,15 @@
 import google.generativeai as genai
 import os
 import logging
+import time
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Model cache to avoid repeated API calls
+_model_cache = {"models": None, "timestamp": 0}
+CACHE_TTL = 3600  # Cache for 1 hour
 
 def get_gemini_model(capability="text", api_key=None):
     """
@@ -35,20 +40,33 @@ def get_gemini_model(capability="text", api_key=None):
     
     preferred_list = preferences.get(capability, preferences["text"])
     
-    # Check availability
-    available_models = []
-    try:
-        print("--- Checking Available Gemini Models ---")
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                # Strip 'models/' prefix for easier matching
-                clean_name = m.name.replace("models/", "")
-                available_models.append(clean_name)
-                print(f"Found supported model: {clean_name}")
-        print("----------------------------------------")
-    except Exception as e:
-        logger.warning(f"Could not list models: {e}. Using defaults.")
-        print(f"Error listing models: {e}")
+    # Check cache first
+    current_time = time.time()
+    if _model_cache["models"] is None or (current_time - _model_cache["timestamp"]) > CACHE_TTL:
+        # Cache miss or expired - refresh
+        available_models = []
+        try:
+            print("--- Checking Available Gemini Models (caching) ---")
+            for m in genai.list_models():
+                if 'generateContent' in m.supported_generation_methods:
+                    clean_name = m.name.replace("models/", "")
+                    available_models.append(clean_name)
+                    print(f"Found supported model: {clean_name}")
+            print("----------------------------------------")
+            _model_cache["models"] = available_models
+            _model_cache["timestamp"] = current_time
+        except Exception as e:
+            logger.warning(f"Could not list models (API key: {api_key[:10] if api_key else 'None'}...): {e}. Using defaults.")
+            print(f"Error listing models: {e}")
+            # If cache exists, use stale data
+            if _model_cache["models"] is not None:
+                available_models = _model_cache["models"]
+            else:
+                available_models = []
+    else:
+        # Cache hit
+        available_models = _model_cache["models"]
+        print(f"Using cached model list ({len(available_models)} models)")
 
     # Find first match
     selected_model_name = None

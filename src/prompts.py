@@ -28,20 +28,20 @@ Input Text:
 
 IMAGE_PROMPT_TEMPLATE = """
 Cinematic shot of {scene_description}, 
-{style} style, masterpiece, best quality, highly detailed, sharp focus, 
-dramatic lighting, visual storytelling, 8k resolution, 16:9 aspect ratio, 
+{style} style, highly detailed, dramatic lighting, 
+visual storytelling, 8k resolution, 16:9 aspect ratio, 
 no text, no watermark.
 """
 
 ENTITY_PROMPT_TEMPLATE = """
 Full body character design of {name} as {role}, 
-{style} style, masterpiece, best quality, centered, expressive, 
-detailed clothing, clean background, 8k resolution, no text.
+{style} style, centered, expressive, detailed clothing, 
+clean background, 8k resolution, no text.
 """
 
 TITLE_PROMPT_TEMPLATE = """
 Book cover art for "{title}", 
-{style} style, masterpiece, best quality, elegant, captivating, 
+{style} style, elegant, captivating, 
 room for title text (but no actual text), 
 high quality illustration, 16:9 aspect ratio.
 """
@@ -50,7 +50,7 @@ high quality illustration, 16:9 aspect ratio.
 SCENE_PROMPT_TEMPLATE = """
 Cinematic illustration of a key scene: {scene_description},
 Context: {character_context}
-{style} style, masterpiece, best quality, highly detailed, dramatic composition, 
+{style} style, highly detailed, dramatic composition, 
 visual storytelling, 8k resolution, 16:9 aspect ratio, 
 no text, no watermark.
 """

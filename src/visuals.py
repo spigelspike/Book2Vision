@@ -11,16 +11,13 @@ import time
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Rate limiting configuration
+MAX_CONCURRENT_REQUESTS = 1  # Single request to strictly avoid API rate limits
+MAX_RETRY_ATTEMPTS = 5  # Maximum retries before giving up on image generation
+BASE_RETRY_DELAY_SECONDS = 2  # Initial delay between retries (grows exponentially)
+INTER_REQUEST_DELAY_SECONDS = 2  # Delay between retry attempts for failed requests
+
 class RateLimitController:
-    """
-    Manages global rate limiting for API requests.
-    
-    Mechanisms:
-    1. Semaphore: Limits concurrent requests (e.g., max 1 at a time).
-    2. Global Backoff: If any request hits a 429 (Too Many Requests), 
-       ALL future requests are paused until the backoff period expires.
-       This prevents spamming the API when it's already overwhelmed.
-    """
     def __init__(self, max_concurrent=2):
         self.semaphore = asyncio.Semaphore(max_concurrent)
         self.global_backoff_until = 0.0
@@ -46,11 +43,10 @@ class RateLimitController:
                 self.global_backoff_until = new_target
                 print(f"🛑 Global backoff triggered. Pausing all requests for {wait_time:.1f}s...")
 
-# Initialize global controller
-# Limit to 1 concurrent request to strictly avoid rate limits
-rate_limiter = RateLimitController(max_concurrent=1)
+# Initialize global controller with configured concurrency limit
+rate_limiter = RateLimitController(max_concurrent=MAX_CONCURRENT_REQUESTS)
 
-async def generate_entity_image(entity_name, entity_role, output_dir, seed=None, style="storybook"):
+async def generate_entity_image(entity_name, entity_role, output_dir, seed=None):
     """
     Generates a circular-ready avatar image for an entity (Async).
     """
@@ -59,15 +55,15 @@ async def generate_entity_image(entity_name, entity_role, output_dir, seed=None,
         
     prompt = (
         f"Close-up portrait of {entity_name} as {entity_role}, "
-        f"centered character, facing the viewer, {style} style, "
-        f"masterpiece, best quality, expressive, highly detailed, soft diffused lighting, "
+        f"centered character, facing the viewer, photorealistic, cinematic lighting, "
+        f"8k resolution, highly detailed, realistic texture, "
         f"clean plain white background, no text, no logo, no watermark, "
         f"framed to work well as a circular avatar."
     )
     encoded_prompt = urllib.parse.quote(prompt)
     
-    # Use default model (no model param) for better reliability
-    image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed}&width=512&height=512&nologo=true"
+    # Use Flux model for better quality
+    image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed}&width=1024&height=1024&model=flux-realism&nologo=true&enhance=true"
     
     safe_name = re.sub(r'[\\/*?:"<>|\n\r]', "_", entity_name)
     filename = f"entity_{safe_name}.jpg"
@@ -80,7 +76,7 @@ async def _download_image_async(url, output_path, description):
     Helper to download an image asynchronously with semaphore, retries, and exponential backoff.
     """
     async with rate_limiter.semaphore:
-        for attempt in range(5):
+        for attempt in range(MAX_RETRY_ATTEMPTS):
             # 1. Check global backoff before starting
             await rate_limiter.wait_if_needed()
             
@@ -129,9 +125,10 @@ async def _download_image_async(url, output_path, description):
             except Exception as e:
                 print(f"❌ Unexpected error for {description}: {e}")
                 return None
-            finally:
-                # Mandatory delay after every request (success or fail) to prevent bursts
-                await asyncio.sleep(10)
+        
+        # Add minimal delay only between actual retry attempts (not after success)
+        if attempt < (MAX_RETRY_ATTEMPTS - 1):
+            await asyncio.sleep(INTER_REQUEST_DELAY_SECONDS)
                 
     print(f"❌ Failed to generate {description} after all attempts.")
     return None
@@ -140,13 +137,7 @@ from src.prompts import IMAGE_PROMPT_TEMPLATE, ENTITY_PROMPT_TEMPLATE, TITLE_PRO
 
 async def generate_images(semantic_map, output_dir, style="manga", seed=None, title=None):
     """
-    Orchestrates the asynchronous generation of all images for a book.
-    
-    1. Generates a Title Page.
-    2. Generates Scene Illustrations (based on semantic analysis).
-    3. Generates Entity Avatars (top 3 characters).
-    
-    Uses `aiohttp` for concurrent (but rate-limited) requests.
+    Generates images based on semantic analysis using Pollinations.ai (Async).
     """
     images = []
     
@@ -161,8 +152,8 @@ async def generate_images(semantic_map, output_dir, style="manga", seed=None, ti
     if title:
         prompt = TITLE_PROMPT_TEMPLATE.format(title=title, style=style)
         encoded_prompt = urllib.parse.quote(prompt)
-        # Reduced resolution for reliability
-        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed}&width=1280&height=720&nologo=true"
+        # Use Flux model, 1080p resolution
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed}&width=1920&height=1080&model=flux&nologo=true&enhance=true"
         
         safe_title = "".join([c if c.isalnum() else "_" for c in title])[:50]
         filename = f"image_00_title_{safe_title}.jpg"
@@ -193,8 +184,8 @@ async def generate_images(semantic_map, output_dir, style="manga", seed=None, ti
             style=style
         )
         encoded_prompt = urllib.parse.quote(prompt)
-        # Reduced resolution
-        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed+200+i}&width=1280&height=720&nologo=true"
+        # Use Flux model, 1080p resolution
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed+200+i}&width=1920&height=1080&model=flux&nologo=true&enhance=true"
         
         filename = f"image_01_scene_{i+1:02d}.jpg"
         img_path = os.path.join(output_dir, filename)
@@ -214,8 +205,8 @@ async def generate_images(semantic_map, output_dir, style="manga", seed=None, ti
         
         prompt = ENTITY_PROMPT_TEMPLATE.format(name=name, role=role, style=style)
         encoded_prompt = urllib.parse.quote(prompt)
-        # Reduced resolution
-        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed+i+1}&width=1280&height=720&nologo=true"
+        # Use Flux Realism for entities, square aspect ratio
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed+i+1}&width=1024&height=1024&model=flux-realism&nologo=true&enhance=true"
         
         safe_name = "".join([c if c.isalnum() else "_" for c in name])[:30]
         filename = f"image_02_entity_{safe_name}.jpg"

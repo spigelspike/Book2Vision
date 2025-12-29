@@ -29,6 +29,7 @@ async def generate_ssml(text):
         print(f"Error generating SSML: {e}")
         return text # Fallback to original text
 
+<<<<<<< HEAD
 async def generate_audio_deepgram(text, output_path):
     """
     Generates audio using Deepgram API.
@@ -39,6 +40,33 @@ async def generate_audio_deepgram(text, output_path):
         raise Exception("DEEPGRAM_API_KEY is missing!")
         
     url = "https://api.deepgram.com/v1/speak?model=aura-asteria-en"
+=======
+def get_deepgram_voice(voice_id: str) -> str:
+    """
+    Map ElevenLabs/generic voice IDs to Deepgram Aura-2 voices.
+    Uses best-quality Aura-2 models.
+    """
+    voice_map = {
+        "pNInz6obpgDQGcFmaJgB": "aura-2-odysseus-en",  # Adam -> Odysseus (Masculine, clear for Jax)
+        "21m00Tcm4TlvDq8ikWAM": "aura-2-luna-en",      # Rachel -> Luna (Feminine, friendly for Emma)
+    }
+    return voice_map.get(voice_id, "aura-2-odysseus-en")
+
+async def generate_audio_deepgram(text, output_path, voice_id="21m00Tcm4TlvDq8ikWAM"):
+    """
+    Generates audio using Deepgram Aura-2 TTS API.
+    Automatically selects appropriate voice based on voice_id mapping.
+    """
+    if not DEEPGRAM_API_KEY:
+        print("ERROR: DEEPGRAM_API_KEY is missing!")
+        raise Exception("DEEPGRAM_API_KEY is missing!")
+    
+    # Get the appropriate Deepgram voice
+    deepgram_voice = get_deepgram_voice(voice_id)
+    print(f"Generating audio using Deepgram Aura-2 ({deepgram_voice})...")
+    
+    url = f"https://api.deepgram.com/v1/speak?model={deepgram_voice}"
+>>>>>>> temp_fix
     
     headers = {
         "Authorization": f"Token {DEEPGRAM_API_KEY}",
@@ -62,6 +90,7 @@ async def generate_audio_deepgram(text, output_path):
                 return output_path
             
             result = await asyncio.to_thread(write_file)
+<<<<<<< HEAD
             print(f"Deepgram audio saved to {result}")
             return result
         else:
@@ -93,6 +122,52 @@ async def generate_audio(text, output_path="audiobook.mp3", voice_id="21m00Tcm4T
     else:
         # Default to ElevenLabs
         return await generate_audio_elevenlabs(text, output_path, voice_id, stability, similarity_boost, style, use_speaker_boost)
+=======
+            print(f"✅ Deepgram audio saved: {result}")
+            return result
+        else:
+            error_msg = f"Deepgram API Error: {response.status_code} - {response.text}"
+            print(error_msg)
+            raise Exception(error_msg)
+    except Exception as e:
+        print(f"❌ Deepgram failed: {e}")
+        raise e
+
+async def generate_audio(text, output_path="audiobook.mp3", voice_id="21m00Tcm4TlvDq8ikWAM", stability=0.5, similarity_boost=0.75, style=0.0, use_speaker_boost=True, provider="elevenlabs", speaking_rate=1.0):
+    """
+    Generates audio using the specified provider with automatic fallback.
+    Priority: Deepgram -> Edge TTS (inbuilt)
+    """
+    print(f"🎵 Generating audio with provider: {provider} (Rate: {speaking_rate})")
+    
+    # Deepgram with automatic fallback to edge-tts
+    if provider == "deepgram":
+        if not DEEPGRAM_API_KEY:
+            print("⚠️  Deepgram key missing. Falling back to Inbuilt (Edge TTS).")
+            return await generate_audio_edge(text, output_path, voice_id, rate=speaking_rate)
+        
+        try:
+            return await generate_audio_deepgram(text, output_path, voice_id)
+        except Exception as e:
+            print(f"⚠️  Deepgram failed: {e}. Falling back to Inbuilt (Edge TTS).")
+            return await generate_audio_edge(text, output_path, voice_id, rate=speaking_rate)
+    
+    # Edge TTS (inbuilt)
+    elif provider == "inbuilt":
+        return await generate_audio_edge(text, output_path, voice_id, rate=speaking_rate)
+    
+    # ElevenLabs with fallback
+    elif provider == "elevenlabs":
+        if not ELEVENLABS_API_KEY:
+            print("⚠️  ElevenLabs key missing. Falling back to Inbuilt (Edge TTS).")
+            return await generate_audio_edge(text, output_path, voice_id, rate=speaking_rate)
+        return await generate_audio_elevenlabs(text, output_path, voice_id, stability, similarity_boost, style, use_speaker_boost)
+    
+    # Default fallback
+    else:
+        print(f"⚠️  Unknown provider '{provider}'. Using Edge TTS.")
+        return await generate_audio_edge(text, output_path, voice_id, rate=speaking_rate)
+>>>>>>> temp_fix
 
 async def generate_audio_elevenlabs(text, output_path, voice_id, stability, similarity_boost, style, use_speaker_boost):
     """
@@ -103,7 +178,7 @@ async def generate_audio_elevenlabs(text, output_path, voice_id, stability, simi
         print("ERROR: ELEVENLABS_API_KEY is missing!")
         raise Exception("ELEVENLABS_API_KEY is missing!")
     else:
-        print(f"API Key present: {ELEVENLABS_API_KEY[:4]}...{ELEVENLABS_API_KEY[-4:]}")
+        print(f"API Key present: {bool(ELEVENLABS_API_KEY)}")
     
     url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
     
@@ -154,16 +229,36 @@ async def generate_audio_elevenlabs(text, output_path, voice_id, stability, simi
     except Exception as e:
         print(f"Exception in ElevenLabs TTS: {e}")
         print("Falling back to Edge TTS...")
-        return await generate_audio_edge(text, output_path)
+        return await generate_audio_edge(text, output_path, voice_id)
 
-async def generate_audio_edge(text, output_path):
+async def generate_audio_edge(text, output_path, voice_id=None, rate=1.0):
     """
     Fallback using edge-tts (free).
     """
     try:
         import edge_tts
-        print(f"Generating audio using Edge TTS...")
-        communicate = edge_tts.Communicate(text, "en-US-ChristopherNeural")
+        
+        # Calculate rate string (e.g., "+10%", "-10%")
+        rate_str = "+0%"
+        if rate != 1.0:
+            percent = int((rate - 1.0) * 100)
+            sign = "+" if percent >= 0 else ""
+            rate_str = f"{sign}{percent}%"
+            
+        print(f"Generating audio using Edge TTS (Rate: {rate_str})...")
+        
+        # Map ElevenLabs IDs to Edge Voices if possible, or use a default mapping
+        edge_voice = "en-US-ChristopherNeural" # Default
+        
+        # Simple mapping for Podcast fallback
+        # Adam (Jax) -> Guy
+        # Rachel (Emma) -> Aria
+        if "pNInz6obpgDQGcFmaJgB" in str(voice_id): # Adam ID
+             edge_voice = "en-US-GuyNeural"
+        elif "21m00Tcm4TlvDq8ikWAM" in str(voice_id): # Rachel ID
+             edge_voice = "en-US-AriaNeural"
+             
+        communicate = edge_tts.Communicate(text, edge_voice, rate=rate_str)
         await communicate.save(output_path)
         print(f"Audio saved to {output_path}")
         return output_path

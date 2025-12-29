@@ -1,3 +1,7 @@
+// ============================================
+// CONFIGURATION & STATE
+// ============================================
+
 const API_BASE = "/api";
 
 // DOM Elements
@@ -16,6 +20,10 @@ const imageDisplay = document.getElementById('image-display');
 
 const btnAudio = document.getElementById('btn-audio');
 const btnVisuals = document.getElementById('btn-visuals');
+const btnPodcast = document.getElementById('btn-podcast');
+const podcastPlayerUi = document.getElementById('podcast-player-ui');
+const podcastAvatar = document.getElementById('podcast-avatar');
+const podcastTranscript = document.getElementById('podcast-transcript');
 const audioPlayer = document.getElementById('audio-player');
 const audioVisualizer = document.querySelector('.audio-visualizer');
 const chatbotFab = document.getElementById('chatbot-fab');
@@ -37,6 +45,7 @@ const qaSuggestions = document.getElementById('qa-suggestions');
 let currentStoryText = "";
 let isPlaying = false;
 let audioDuration = 0;
+let isTogglingAudio = false;
 
 // Default Settings
 const DEFAULT_SETTINGS = {
@@ -49,11 +58,28 @@ const DEFAULT_SETTINGS = {
 
 // --- Initialization ---
 
+// ============================================
+// INITIALIZATION
+// ============================================
+
 function init() {
     setupEventListeners();
     // Initialize settings if not present
     if (!localStorage.getItem('b2v_settings')) {
         localStorage.setItem('b2v_settings', JSON.stringify(DEFAULT_SETTINGS));
+    }
+
+    // Page-specific logic
+    const path = window.location.pathname;
+    if (path.includes('library.html')) {
+        fetchLibrary();
+    } else {
+        // Home page: Check for bookId param
+        const urlParams = new URLSearchParams(window.location.search);
+        const bookId = urlParams.get('bookId');
+        if (bookId) {
+            loadBookFromId(bookId);
+        }
     }
 }
 
@@ -61,6 +87,15 @@ function setupEventListeners() {
     // Upload
     if (dropZone) {
         dropZone.addEventListener('click', () => fileInput.click());
+
+        // Add keyboard support for accessibility
+        dropZone.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                fileInput.click();
+            }
+        });
+
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
             dropZone.classList.add('dragover');
@@ -117,6 +152,12 @@ function setupEventListeners() {
 
     // Visuals
     if (btnVisuals) btnVisuals.addEventListener('click', generateVisuals);
+    if (btnPodcast) btnPodcast.addEventListener('click', generatePodcast);
+
+    // Chatbot FAB + Close button
+    if (chatbotFab) chatbotFab.addEventListener('click', toggleChat);
+    const closeChatBtn = document.querySelector('.chatbot-header .btn-icon');
+    if (closeChatBtn) closeChatBtn.addEventListener('click', toggleChat);
 
     // QA
     if (btnSendQa) btnSendQa.addEventListener('click', handleQASubmit);
@@ -142,6 +183,10 @@ function saveSettings(newSettings) {
 }
 
 // --- Core Logic ---
+
+// ============================================
+// UPLOAD & INGESTION
+// ============================================
 
 async function handleUpload(file) {
     // Validate file type
@@ -214,12 +259,15 @@ function loadDashboard(data, filename) {
 }
 
 async function fetchStoryContent() {
-    try {
-        const res = await fetch(`${API_BASE}/story`);
-        const data = await res.json();
-        currentStoryText = data.body; // Update with full text for better audio/QA
-    } catch (e) {
-        console.warn("Failed to fetch full story text, using summary.");
+    // Only fetch if we don't already have the full text
+    if (!currentStoryText || currentStoryText.length < 500) {
+        try {
+            const res = await fetch(`${API_BASE}/story`);
+            const data = await res.json();
+            currentStoryText = data.body; // Update with full text for better audio/QA
+        } catch (e) {
+            console.warn("Failed to fetch full story text, using summary.");
+        }
     }
 }
 
@@ -227,12 +275,21 @@ function renderEntities(entities) {
     entitiesList.innerHTML = '';
 
     if (!entities || entities.length === 0) {
-        entitiesList.innerHTML = '<div class="placeholder-text">No characters found.</div>';
+        entitiesList.innerHTML = `
+            <div class="empty-state">
+                <div class="empty-icon">👤</div>
+                <p style="font-weight: 600; margin-bottom: 0.5rem;">No Characters Detected</p>
+                <p style="font-size: 0.85rem; opacity: 0.7;">The AI couldn't identify any characters in this book. This is normal for non-fiction or technical content.</p>
+            </div>
+        `;
         entityCount.textContent = "0";
         return;
     }
 
     entityCount.textContent = entities.length;
+
+    // Create all cards first with placeholder images
+    const imagePromises = [];
 
     entities.forEach(ent => {
         let name, role;
@@ -245,20 +302,23 @@ function renderEntities(entities) {
         }
 
         const card = document.createElement('div');
-        card.className = 'entity-card fade-in-element'; // Added animation class
+        card.className = 'entity-card fade-in-element';
         const imgId = `img-${name.replace(/[^a-zA-Z0-9]/g, '')}`;
 
         card.innerHTML = `
             <img src="https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random" class="entity-img" id="${imgId}">
-            <div>
-                <div style="font-weight:600">${name}</div>
-                <div style="font-size:0.8rem; opacity:0.7">${role}</div>
-            </div>
+            <div style="font-weight:600; font-size: 0.95rem;">${name}</div>
+            <div style="font-size:0.75rem; opacity:0.7; margin-top: -0.3rem;">${role}</div>
         `;
         entitiesList.appendChild(card);
 
-        // Lazy load real image
-        fetchEntityImage(name, imgId);
+        // Queue image fetch for parallel execution
+        imagePromises.push(fetchEntityImage(name, imgId));
+    });
+
+    // Fetch all images in parallel
+    Promise.all(imagePromises).catch(e => {
+        console.warn("Some entity images failed to load:", e);
     });
 }
 
@@ -273,6 +333,8 @@ async function fetchEntityImage(name, imgId) {
                 // The backend now adds a timestamp, but we can add one here too just in case
                 img.src = data.image_url;
             }
+        } else {
+            console.warn(`Entity image for ${name} returned null URL.`);
         }
     } catch (e) {
         // Silent fail for entity images
@@ -280,6 +342,10 @@ async function fetchEntityImage(name, imgId) {
 }
 
 // --- Audio ---
+
+// ============================================
+// AUDIO GENERATION & PLAYBACK
+// ============================================
 
 async function generateAudio() {
     if (!currentStoryText) {
@@ -300,7 +366,7 @@ async function generateAudio() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                text: currentStoryText,
+                text: currentStoryText.substring(0, 3000), // Send only what's needed (preview)
                 voice_id: settings.voiceId,
                 stability: settings.stability,
                 similarity_boost: settings.similarity,
@@ -341,6 +407,10 @@ function toggleAudio() {
         return;
     }
 
+    // Prevent race conditions from rapid clicking
+    if (isTogglingAudio) return;
+    isTogglingAudio = true;
+
     if (audioPlayer.paused) {
         const playPromise = audioPlayer.play();
         if (playPromise !== undefined) {
@@ -356,13 +426,18 @@ function toggleAudio() {
                     console.error("Play failed:", e);
                     showToast("Could not play audio. " + e.message, "error");
                 }
+            }).finally(() => {
+                isTogglingAudio = false;
             });
+        } else {
+            isTogglingAudio = false;
         }
     } else {
         audioPlayer.pause();
         isPlaying = false;
         btnPlayPause.textContent = "▶";
         ui.classList.remove('playing');
+        isTogglingAudio = false;
     }
 }
 
@@ -371,6 +446,9 @@ function skip(seconds) {
 }
 
 function updateProgress() {
+    if (!audioPlayer.duration || isNaN(audioPlayer.duration) || audioPlayer.duration === 0) {
+        return; // Skip update if duration is invalid
+    }
     const percent = (audioPlayer.currentTime / audioPlayer.duration) * 100;
     audioProgress.style.width = `${percent}%`;
     currentTimeEl.textContent = formatTime(audioPlayer.currentTime);
@@ -384,6 +462,10 @@ function formatTime(seconds) {
 }
 
 // --- Visuals ---
+
+// ============================================
+// VISUAL GENERATION
+// ============================================
 
 async function generateVisuals() {
     const originalText = btnVisuals.innerHTML;
@@ -433,17 +515,21 @@ function injectImages(images, isAsync = false) {
             img.className = 'generated-img placeholder';
             img.alt = `Scene ${index}`;
 
-            // Loading spinner
-            const spinner = document.createElement('div');
-            spinner.className = 'loading-spinner';
-            spinner.innerHTML = '🎨';
+            // Skeleton structure for loading
+            const skeleton = document.createElement('div');
+            skeleton.className = 'skeleton-card';
+            skeleton.style.width = '100%';
+            skeleton.style.height = '100%';
+            skeleton.style.position = 'absolute';
+            skeleton.style.top = '0';
+            skeleton.style.left = '0';
 
             wrapper.appendChild(img);
-            wrapper.appendChild(spinner);
+            wrapper.appendChild(skeleton); // Add skeleton overlay
             imageDisplay.appendChild(wrapper);
 
             // Start polling for this image
-            pollForImage(img, imgUrl, spinner);
+            pollForImage(img, imgUrl, skeleton);
         });
     } else {
         imageDisplay.innerHTML = '<div class="placeholder-content"><p>No images generated.</p></div>';
@@ -451,22 +537,36 @@ function injectImages(images, isAsync = false) {
 }
 
 function pollForImage(imgElement, url, spinner, attempts = 0) {
-    const maxAttempts = 60; // 2 minutes approx (2s interval)
+    const maxAttempts = 20; // Reduce from 60 to 20 with longer intervals
+    const baseInterval = 2000; // Start at 2s
+    const maxInterval = 10000; // Cap at 10s
 
     const img = new Image();
     img.onload = () => {
         imgElement.src = url;
         imgElement.classList.remove('placeholder');
         imgElement.classList.add('loaded', 'fade-in-image');
-        if (spinner) spinner.remove();
+        if (spinner) spinner.remove(); // Remove skeleton/spinner
     };
     img.onerror = () => {
         if (attempts < maxAttempts) {
-            setTimeout(() => pollForImage(imgElement, url, spinner, attempts + 1), 2000);
+            // Exponential backoff: 2s, 3s, 4.5s, 6.75s, capped at 10s
+            const nextInterval = Math.min(baseInterval * Math.pow(1.5, attempts), maxInterval);
+            setTimeout(() => pollForImage(imgElement, url, spinner, attempts + 1), nextInterval);
         } else {
+            // Add retry button on failure
             if (spinner) {
-                spinner.innerHTML = '❌';
-                spinner.title = "Failed to load";
+                spinner.innerHTML = '';
+                spinner.className = 'image-error-state';
+
+                const errorContent = document.createElement('div');
+                errorContent.innerHTML = `
+                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">❌</div>
+                    <button class="btn-retry" onclick="retryImage('${url}', '${imgElement.id}', this.parentElement.parentElement)">
+                        Retry
+                    </button>
+                `;
+                spinner.appendChild(errorContent);
             }
         }
     };
@@ -474,7 +574,114 @@ function pollForImage(imgElement, url, spinner, attempts = 0) {
     img.src = `${url}?t=${Date.now()}`;
 }
 
+// --- Podcast ---
+
+let podcastPlaylist = [];
+let currentPodcastIndex = 0;
+
+async function generatePodcast() {
+    const originalText = btnPodcast.innerHTML;
+    btnPodcast.innerHTML = '<span class="icon">⏳</span> Scripting...';
+    btnPodcast.disabled = true;
+
+    // Stop Audiobook if playing
+    if (isPlaying) {
+        toggleAudio();
+    }
+
+    // Show UI, Hide Audiobook Controls
+    podcastPlayerUi.classList.remove('hidden');
+    document.querySelector('.audio-visualizer').classList.add('hidden');
+    document.getElementById('progress-container').classList.add('hidden');
+    document.querySelector('.time-display').classList.add('hidden');
+    document.querySelector('.player-controls').classList.add('hidden');
+
+    podcastTranscript.textContent = "Producers are writing the script...";
+
+    try {
+        const res = await fetch(`${API_BASE}/generate/podcast`, {
+            method: 'POST'
+        });
+
+        if (!res.ok) throw new Error("Podcast generation failed");
+
+        const data = await res.json();
+        podcastPlaylist = data.playlist;
+
+        if (podcastPlaylist.length > 0) {
+            podcastTranscript.textContent = "Recording audio...";
+            playPodcastSequence(0);
+        } else {
+            throw new Error("No script generated.");
+        }
+
+    } catch (e) {
+        showToast(e.message, "error");
+        closePodcast(); // Revert UI on error
+    } finally {
+        btnPodcast.innerHTML = originalText;
+        btnPodcast.disabled = false;
+    }
+}
+
+let currentPodcastAudio = null;
+
+function playPodcastSequence(index) {
+    if (index >= podcastPlaylist.length) {
+        podcastTranscript.textContent = "Thanks for listening!";
+        podcastAvatar.textContent = "👋";
+        return;
+    }
+
+    currentPodcastIndex = index;
+    const segment = podcastPlaylist[index];
+
+    // Update UI
+    podcastTranscript.textContent = `"${segment.text}"`;
+    podcastAvatar.textContent = segment.speaker === "Jax" ? "😎" : "👩‍🏫";
+    podcastAvatar.style.background = segment.speaker === "Jax" ? "#FF6B6B" : "#4ECDC4";
+
+    // Play Audio
+    if (currentPodcastAudio) {
+        currentPodcastAudio.pause();
+        currentPodcastAudio = null;
+    }
+    currentPodcastAudio = new Audio(segment.url);
+    currentPodcastAudio.play();
+
+    currentPodcastAudio.onended = () => {
+        playPodcastSequence(index + 1);
+    };
+
+    currentPodcastAudio.onerror = () => {
+        console.error("Audio segment failed, skipping...");
+        playPodcastSequence(index + 1);
+    };
+}
+
+function closePodcast() {
+    podcastPlayerUi.classList.add('hidden');
+
+    // Stop Podcast Audio
+    if (currentPodcastAudio) {
+        currentPodcastAudio.pause();
+        currentPodcastAudio = null;
+    }
+    podcastPlaylist = []; // Clear playlist
+
+    // Show Audiobook Controls
+    document.querySelector('.audio-visualizer').classList.remove('hidden');
+    document.getElementById('progress-container').classList.remove('hidden');
+    document.querySelector('.time-display').classList.remove('hidden');
+    document.querySelector('.player-controls').classList.remove('hidden');
+}
+window.closePodcast = closePodcast;
+
 // --- Q&A ---
+
+// ============================================
+// Q&A / CHAT
+// ============================================
 
 async function handleQASubmit() {
     const question = qaInput.value.trim();
@@ -516,7 +723,7 @@ async function handleQASubmit() {
 
         let errorMsg = "Sorry, I couldn't answer that.";
         if (e.name === 'AbortError') {
-            errorMsg = "Sorry, the request timed out. Please try again.";
+            errorMsg = "The question timed out. The book may be too long or the AI is busy. Try a simpler question.";
         } else {
             errorMsg += " " + e.message;
         }
@@ -527,20 +734,15 @@ async function handleQASubmit() {
 let msgCounter = 0;
 function addChatMessage(text, type) {
     const msg = document.createElement('div');
-    msg.className = `chat-message ${type} fade-in-element`; // Added animation
+    msg.className = `chat-message ${type} fade-in-element`;
     msg.textContent = text;
     const id = 'msg-' + Date.now() + '-' + (msgCounter++);
     msg.id = id;
 
     qaChatContainer.appendChild(msg);
 
-    // Smooth scroll to bottom
-    requestAnimationFrame(() => {
-        qaChatContainer.scrollTo({
-            top: qaChatContainer.scrollHeight,
-            behavior: 'smooth'
-        });
-    });
+    // Immediate scroll (faster than requestAnimationFrame)
+    qaChatContainer.scrollTop = qaChatContainer.scrollHeight;
 
     return id;
 }
@@ -568,7 +770,178 @@ async function fetchSuggestedQuestions() {
     }
 }
 
+// --- Library ---
+
+// ============================================
+// LIBRARY MANAGEMENT
+// ============================================
+
+let libraryBooks = [];
+
+async function fetchLibrary() {
+    try {
+        // Show skeletons
+        const grid = document.getElementById('library-grid');
+        if (grid) {
+            grid.innerHTML = Array(6).fill(0).map(() => `
+                <div class="book-card glass skeleton-card" style="height: 200px;"></div>
+            `).join('');
+        }
+
+        const res = await fetch(`${API_BASE}/library`);
+        const data = await res.json();
+        libraryBooks = data.books;
+        renderLibrary();
+    } catch (e) {
+        showToast("Failed to load library", "error");
+    }
+}
+
+function renderLibrary() {
+    const grid = document.getElementById('library-grid');
+    if (!grid) return; // Guard clause for non-library pages
+
+    const searchTerm = document.getElementById('library-search').value.toLowerCase();
+    const sortMethod = document.getElementById('library-sort').value;
+
+    // Filter
+    let filtered = libraryBooks.filter(book =>
+        book.title.toLowerCase().includes(searchTerm) ||
+        book.author.toLowerCase().includes(searchTerm)
+    );
+
+    // Sort
+    filtered.sort((a, b) => {
+        if (sortMethod === 'date-desc') return b.upload_date - a.upload_date;
+        if (sortMethod === 'date-asc') return a.upload_date - b.upload_date;
+        if (sortMethod === 'title-asc') return a.title.localeCompare(b.title);
+        return 0;
+    });
+
+    grid.innerHTML = '';
+
+    if (filtered.length === 0) {
+        if (searchTerm) {
+            grid.innerHTML = `
+                <div class="library-empty-state glass">
+                    <div class="icon-large">🔍</div>
+                    <h3>No books found</h3>
+                    <p>Try a different search term</p>
+                </div>
+            `;
+        } else {
+            grid.innerHTML = `
+                <div class="library-empty-state glass">
+                    <div class="icon-large">📚</div>
+                    <h3>Your library is empty</h3>
+                    <p>Upload a book to get started!</p>
+                    <button class="btn-primary" onclick="window.location.href='index.html'">Upload Book</button>
+                </div>
+            `;
+        }
+        return;
+    }
+
+    filtered.forEach(book => {
+        const card = document.createElement('div');
+        card.className = 'book-card glass fade-in-element';
+
+        // Format date
+        const date = new Date(book.upload_date * 1000).toLocaleDateString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+
+        let thumbContent = `<div class="book-card-placeholder-icon">📖</div>`;
+        if (book.thumbnail) {
+            thumbContent = `<img src="/api/assets/${book.thumbnail}" alt="${book.title}" class="book-card-img" loading="lazy">`;
+        }
+
+        card.innerHTML = `
+            <div class="book-card-cover-area">
+                ${thumbContent}
+                <div class="book-card-overlay">
+                    <button class="btn-icon-glass" onclick="openBook('${book.id}')" title="Read Book">
+                        <span style="font-size: 1.5rem;">▶</span>
+                    </button>
+                </div>
+                <button class="btn-delete-absolute" onclick="deleteBook('${book.id}')" title="Delete Book">×</button>
+            </div>
+            
+            <div class="book-card-content">
+                <div class="book-card-meta">
+                    <h3 class="book-card-title" title="${book.title}">${book.title}</h3>
+                    <p class="book-card-author">${book.author}</p>
+                </div>
+                
+                <div class="book-card-footer">
+                    <span class="book-date">${date}</span>
+                    <button class="btn-text-action" onclick="openBook('${book.id}')">Open Library →</button>
+                </div>
+            </div>
+        `;
+        grid.appendChild(card);
+    });
+}
+
+function filterLibrary() {
+    renderLibrary();
+}
+
+function sortLibrary() {
+    renderLibrary();
+}
+
+function openBook(bookId) {
+    // Redirect to home with bookId param
+    window.location.href = `index.html?bookId=${bookId}`;
+}
+
+async function loadBookFromId(bookId) {
+    try {
+        // Show loading state
+        if (typeof heroSection !== 'undefined') heroSection.classList.add('hidden');
+        if (typeof dashboardSection !== 'undefined') dashboardSection.classList.add('hidden');
+
+        showToast("Loading book from library...", "info");
+
+        const res = await fetch(`${API_BASE}/library/load/${bookId}`, { method: 'POST' });
+
+        if (!res.ok) throw new Error("Failed to load book");
+
+        const data = await res.json();
+        loadDashboard(data, data.filename);
+        showToast("Book loaded successfully!", "success");
+
+        // Clear URL param so refresh doesn't re-load
+        window.history.replaceState({}, document.title, "index.html");
+
+    } catch (e) {
+        showToast(e.message, "error");
+        if (typeof heroSection !== 'undefined') heroSection.classList.remove('hidden'); // Show hero on error
+    }
+}
+
+async function deleteBook(bookId) {
+    if (!confirm("Are you sure you want to delete this book? This cannot be undone.")) return;
+
+    try {
+        const res = await fetch(`${API_BASE}/library/${bookId}`, { method: 'DELETE' });
+        if (!res.ok) throw new Error("Failed to delete book");
+
+        showToast("Book deleted", "success");
+        fetchLibrary(); // Refresh
+    } catch (e) {
+        showToast(e.message, "error");
+    }
+}
+
 // --- Utilities ---
+
+// ============================================
+// UTILITIES
+// ============================================
 
 function showToast(message, type = 'info') {
     const container = document.getElementById('toast-container');
@@ -647,4 +1020,16 @@ function toggleChat() {
 
 // Start
 window.toggleChat = toggleChat;
+
+// Global retry function for image generation
+window.retryImage = function (url, imgId, spinner) {
+    spinner.innerHTML = ''; // Clear error
+    spinner.className = 'skeleton-card'; // Reset to skeleton
+    spinner.style.width = '100%';
+    spinner.style.height = '100%';
+    spinner.style.position = 'absolute';
+    const imgElement = document.getElementById(imgId);
+    pollForImage(imgElement, url, spinner, 0); // Start from attempt 0
+};
+
 init();

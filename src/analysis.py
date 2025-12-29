@@ -2,10 +2,17 @@
 from collections import Counter
 import json
 import os
+import re
 import google.generativeai as genai
 from src.config import GEMINI_API_KEY
 from src.gemini_utils import get_gemini_model
 
+<<<<<<< HEAD
+=======
+# Compile regex pattern once for performance
+CAPITALIZED_PATTERN = re.compile(r'\b[A-Z][a-z]+\b')
+
+>>>>>>> temp_fix
 def semantic_analysis(text):
     """
     Performs semantic analysis to extract entities and key concepts.
@@ -27,6 +34,7 @@ def semantic_analysis(text):
 
     # 3. Basic Regex Fallback
     print("Falling back to Basic Regex Analysis...")
+<<<<<<< HEAD
     import re
     # Find capitalized words that might be names (simple heuristic)
     words = re.findall(r'\b[A-Z][a-z]+\b', text)
@@ -48,6 +56,36 @@ def semantic_analysis(text):
     # Count frequency
     counts = Counter(candidates)
     top_entities = [[name, "Character", ""] for name, count in counts.most_common(5)]
+=======
+    
+    # Limit scan to first 10K characters for performance
+    scan_text = text[:10000]
+    words = CAPITALIZED_PATTERN.findall(scan_text)
+    
+    common_stops = {
+        "The", "A", "An", "It", "He", "She", "They", "But", "And", "When", "Then", "Suddenly",
+        "Meanwhile", "However", "Although", "Okay", "So", "If", "This", "That", "There", "Here",
+        "What", "Why", "How", "Who", "Where", "Beneath", "Above", "Behind", "Inside", "Outside",
+        "Near", "Far", "Just", "Only", "Very", "Really", "Now", "Later", "Soon", "Yesterday",
+        "Today", "Tomorrow", "Yes", "No", "Please", "Thank", "Thanks", "Hello", "Hi", "Goodbye",
+        "Mr", "Mrs", "Ms", "Dr", "Prof", "Captain", "Sergeant", "General", "King", "Queen",
+        "Prince", "Princess", "Lord", "Lady", "Sir", "Madam", "One", "Two", "Three", "First",
+        "Second", "Third", "Next", "Last", "Finally", "Also", "Besides", "Moreover", "Furthermore",
+        "In", "On", "At", "To", "For", "With", "By", "From", "Of", "About", "As", "Like"
+    }
+    
+    candidates = [w for w in words if w not in common_stops and len(w) > 2]
+    
+    # Count frequency
+    counts = Counter(candidates)
+    
+    # Entity format: [name, role, visual_description]
+    # Empty description for fallback since regex can't infer appearance
+    top_entities = [
+        [name, "Character", ""]  # description blank - not available from regex
+        for name, count in counts.most_common(5)
+    ]
+>>>>>>> temp_fix
     
     return {
         "summary": text[:200] + "...",

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Library | Book2Vision</title>
+    <meta name="description" content="Your personal library of AI-enhanced books.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@400;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css?v=18">
+</head>
+
+<body>
+
+    <!-- Background Elements -->
+    <div class="bg-orb orb-1" aria-hidden="true"></div>
+    <div class="bg-orb orb-2" aria-hidden="true"></div>
+    <div class="bg-grid" aria-hidden="true"></div>
+
+    <!-- Navbar -->
+    <nav class="navbar glass" aria-label="Main navigation">
+        <div class="logo">Book2Vision <span class="badge">Beta</span></div>
+        <div class="hamburger" onclick="toggleMenu()" aria-label="Toggle menu" role="button" tabindex="0">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+        <div class="nav-links">
+            <a href="index.html">Home</a>
+            <a href="library.html" class="active" aria-current="page">Library</a>
+            <a href="about.html">About us</a>
+        </div>
+    </nav>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" aria-live="polite"></div>
+
+    <main>
+        <!-- Library Section -->
+        <section id="library" class="container fade-in">
+            <div class="library-header glass">
+                <h2>My Library</h2>
+                <div class="library-controls">
+                    <input type="text" id="library-search" placeholder="Search books..." class="glass-input"
+                        oninput="filterLibrary()" aria-label="Search books">
+                    <select id="library-sort" class="glass-input" onchange="sortLibrary()" aria-label="Sort books">
+                        <option value="date-desc">Newest First</option>
+                        <option value="date-asc">Oldest First</option>
+                        <option value="title-asc">A-Z</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="library-grid" class="library-grid" aria-label="Book library grid">
+                <!-- Books injected here -->
+                <div class="library-empty-state glass">
+                    <div class="icon-large" aria-hidden="true">📚</div>
+                    <h3>Loading library...</h3>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="script.js?v=5"></script>
+</body>
+
+</html>
