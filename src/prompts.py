@@ -382,15 +382,28 @@ ANALYSIS REQUIREMENTS:
    
    For each character, provide:
    • Name: As it appears in the text (proper capitalization)
-   • Role: Concise label (e.g., "protagonist", "antagonist", "mentor", "ally")
-   • Visual Description: Physical traits for illustration (age, build, hair, distinctive features)
-   • Outfit: Specific clothing details (colors, style, condition, era)
-   • Signature Prop: Key object they carry/use ("none" if not applicable)
+   • Role: Concise label that captures their GENRE IDENTITY, not just story function.
+     - For superheroes: "superhero protagonist", "superhero antagonist", "vigilante"
+     - For fantasy: "dark wizard", "elven warrior", "dragon rider"
+     - For sci-fi: "starship captain", "cyborg bounty hunter", "alien diplomat"
+     - Generic labels like "protagonist" are acceptable ONLY if no genre-specific role fits
+   • Visual Description: Physical traits for illustration (age, build, hair, distinctive features).
+     IMPORTANT: If the character has a special/iconic appearance (superhero suit, magical aura, 
+     alien features, cybernetic enhancements, transformation, armor, wings, etc.), describe THAT 
+     form as the primary visual. Depict the character in their most recognizable, iconic state.
+     Example: Spider-Man should be described in his red-and-blue suit, NOT as "young brown-haired man".
+   • Outfit: Describe their most iconic/recognizable outfit or costume, including colors and distinctive 
+     design elements. If they have a superhero costume, describe that. If they wear armor, describe 
+     the armor. Focus on the version readers would instantly recognize.
+   • Signature Prop: Key object, weapon, or power visual they are associated with ("none" if not applicable)
+     Examples: "glowing energy shield", "vibranium shield", "lightsaber", "magic staff", "web shooters"
    
    Format: ["Name", "Role", "Visual Description", "Outfit", "Signature Prop"]
    
-   Example: ["Sarah Chen", "protagonist", "athletic build, short black hair, determined eyes", 
-             "worn leather jacket, dark jeans, combat boots", "silver compass necklace"]
+   Example: ["Peter Parker", "superhero protagonist", "lean athletic build, masked face with large white eye lenses, dynamic spider-themed hero", 
+             "iconic red and blue spandex suit with black web pattern, spider emblem on chest", "mechanical web shooters"]
+   Example: ["Gandalf", "wizard mentor", "tall elderly man, long white beard, wise piercing eyes, weathered face",
+             "flowing grey robes, pointed wizard hat, heavy traveling cloak", "gnarled wooden staff with glowing crystal"]
 
 3. THEMES (KEYWORDS)
    • Extract 5-10 core thematic elements
