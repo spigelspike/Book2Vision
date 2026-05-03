@@ -309,7 +309,25 @@ async def get_entity_image(name: str, role: str = "Character", regenerate: bool 
         # If regenerating, maybe use a new seed or just re-call
         seed = None if regenerate else 42
         
-        img_path = await generate_entity_image(name, role, img_dir, seed=seed)
+        # Look up full entity details from the analysis
+        description = ""
+        outfit = ""
+        signature_prop = ""
+        if state.analysis_result:
+            for ent in state.analysis_result.get("entities", []):
+                if isinstance(ent, (list, tuple)) and len(ent) >= 1 and ent[0] == name:
+                    role = ent[1] if len(ent) > 1 else role
+                    description = ent[2] if len(ent) > 2 else ""
+                    outfit = ent[3] if len(ent) > 3 else ""
+                    signature_prop = ent[4] if len(ent) > 4 else ""
+                    break
+        
+        img_path = await generate_entity_image(
+            name, role, img_dir, seed=seed,
+            description=description,
+            outfit=outfit,
+            signature_prop=signature_prop
+        )
         
         if img_path:
             state.entity_images[name] = img_path

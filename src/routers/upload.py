@@ -145,17 +145,27 @@ async def upload_book(file: UploadFile = File(...), background_tasks: Background
                     
                     for entity in top_entities:
                         try:
-                            # Parse entity
-                            if isinstance(entity, list) and len(entity) >= 2:
-                                name, role = entity[0], entity[1]
-                            elif isinstance(entity, tuple) and len(entity) >= 2:
-                                name, role = entity[0], entity[1]
+                            # Parse entity — full format is [name, role, description, outfit, signature_prop]
+                            if isinstance(entity, (list, tuple)) and len(entity) >= 2:
+                                name = entity[0]
+                                role = entity[1] if len(entity) > 1 else "Character"
+                                description = entity[2] if len(entity) > 2 else ""
+                                outfit = entity[3] if len(entity) > 3 else ""
+                                signature_prop = entity[4] if len(entity) > 4 else ""
                             else:
                                 name = str(entity)
                                 role = "Character"
+                                description = ""
+                                outfit = ""
+                                signature_prop = ""
                             
                             print(f"   Generating entity: {name}")
-                            await generate_entity_image(name, role, entity_dir)
+                            await generate_entity_image(
+                                name, role, entity_dir,
+                                description=description,
+                                outfit=outfit,
+                                signature_prop=signature_prop
+                            )
                             # Longer delay between entities to respect deAPI rate limits (free tier: 1-10 RPM)
                             await asyncio.sleep(3)
                         except Exception as e:

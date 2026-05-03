@@ -50,17 +50,29 @@ class RateLimitController:
 # Initialize global controller
 rate_limiter = RateLimitController(max_concurrent=MAX_CONCURRENT_REQUESTS)
 
-async def generate_entity_image(entity_name, entity_role, output_dir, seed=None):
+async def generate_entity_image(entity_name, entity_role, output_dir, seed=None, description="", outfit="", signature_prop=""):
     """
     Generates a circular-ready avatar image for an entity (Async).
     Uses DeAPI (Flux1schnell) for best quality, falls back to Pollinations.
+    Now accepts full character details from semantic analysis for richer prompts.
     """
     if seed is None:
         seed = random.randint(0, 10000)
         
     from src.prompts import ENTITY_PROMPT_TEMPLATE
-    # Use species if available (not passed here, so generic)
-    prompt = ENTITY_PROMPT_TEMPLATE.format(name=entity_name, role=entity_role, species="Character", style="digital art")
+    
+    # Build the signature line only if it's meaningful
+    sig_line = f"Carrying/Holding: {signature_prop}" if signature_prop and signature_prop.lower() not in ["none", "n/a", ""] else ""
+    
+    # Use the rich prompt with all available character details
+    prompt = ENTITY_PROMPT_TEMPLATE.format(
+        name=entity_name,
+        role=entity_role,
+        description=description or "detailed character",
+        outfit=outfit or "appropriate attire",
+        signature_line=sig_line,
+        style="cinematic digital art"
+    )
     
     safe_name = re.sub(r'[\\/*?:"<>|\n\r]', "_", entity_name)
     filename = f"entity_{safe_name}.jpg"
@@ -74,11 +86,13 @@ async def generate_entity_image(entity_name, entity_role, output_dir, seed=None)
             if result:
                 return result
     
-    # Fallback to Pollinations with a simpler, shorter prompt to avoid 404s
+    # Fallback to Pollinations with a concise but descriptive prompt
     print(f" Falling back to Pollinations for {entity_name}...")
-    # Keep prompt short to avoid URL length issues
-    short_prompt = f"character portrait of {entity_name}, {entity_role}, digital art, detailed face, studio lighting, bokeh background"
-    encoded_prompt = urllib.parse.quote(short_prompt)
+    # Include key visual details but keep it short enough for URL
+    desc_short = (description or "detailed character")[:80]
+    outfit_short = (outfit or "")[:50]
+    short_prompt = f"cinematic portrait of {entity_name}, {entity_role}, {desc_short}, wearing {outfit_short}, digital art, studio lighting, bokeh background"
+    encoded_prompt = urllib.parse.quote(short_prompt[:500])  # Cap total length
     image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed}&width=1024&height=1024&model=flux&nologo=true"
     
     async with aiohttp.ClientSession() as session:
@@ -563,18 +577,25 @@ async def generate_images(semantic_map, output_dir, style="manga", seed=None, ti
         if include_entities:
             top_entities = entities[:3]
         for i, entity in enumerate(top_entities):
-            species = "Character"
-            if isinstance(entity, list) and len(entity) >= 3:
-                name, role, species = entity[0], entity[1], entity[2]
-            elif isinstance(entity, list) and len(entity) >= 2:
-                name, role = entity[0], entity[1]
-            elif isinstance(entity, tuple) and len(entity) >= 2:
-                name, role = entity[0], entity[1]
+            description = "detailed character"
+            outfit = "appropriate attire"
+            signature_prop = ""
+            if isinstance(entity, (list, tuple)):
+                name = entity[0] if len(entity) > 0 else str(entity)
+                role = entity[1] if len(entity) > 1 else "Character"
+                description = entity[2] if len(entity) > 2 else "detailed character"
+                outfit = entity[3] if len(entity) > 3 else "appropriate attire"
+                signature_prop = entity[4] if len(entity) > 4 else ""
             else:
                 name = str(entity)
                 role = "Character"
             
-            prompt = ENTITY_PROMPT_TEMPLATE.format(name=name, role=role, species=species, style=style)
+            sig_line = f"Carrying/Holding: {signature_prop}" if signature_prop and signature_prop.lower() not in ["none", "n/a", ""] else ""
+            prompt = ENTITY_PROMPT_TEMPLATE.format(
+                name=name, role=role,
+                description=description, outfit=outfit,
+                signature_line=sig_line, style=style
+            )
             safe_name = "".join([c if c.isalnum() else "_" for c in name])[:30]
             filename = f"image_02_entity_{safe_name}.jpg"
             img_path = os.path.join(output_dir, filename)

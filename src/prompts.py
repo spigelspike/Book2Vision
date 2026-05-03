@@ -183,26 +183,28 @@ EXCLUDE: Text, watermarks, logos, UI elements, low quality, distortion.
 # ----------------------------------------------------------------------------
 
 ENTITY_PROMPT_TEMPLATE = """
-High-fidelity character portrait of {name} as {role}.
-Species/Type: {species}
+Cinematic character portrait of {name}, {role}.
 
-Visual Style: 
-{style}, highly detailed character design, expressive features, 
-subsurface scattering, realistic skin texture (if human), 
-intricate clothing/fur/scales details.
+SUBJECT:
+{name} — {description}
+Wearing: {outfit}
+{signature_line}
 
-Composition: 
-Professional studio portrait, looking at viewer, head and shoulders focus, 
-rim lighting, bokeh background.
+COMPOSITION:
+Head and upper body portrait, slight three-quarter angle, looking at or near the viewer.
+Shallow depth of field with creamy bokeh background.
+Dramatic rim lighting from behind, soft key light from the front.
 
-Lighting: 
-Soft studio lighting with dramatic rim light, volumetric atmosphere.
+VISUAL STYLE:
+{style}, highly detailed, expressive face with clear emotions,
+subsurface scattering on skin, intricate fabric and material textures,
+cinematic color grading, professional studio portrait quality.
 
-Quality: 
-8K resolution, masterpiece, best quality, unreal engine 5 render style, 
-photorealistic or high-end stylized (depending on style).
+QUALITY:
+8K resolution, masterpiece, best quality, sharp focus on eyes and face,
+award-winning character design, trending on ArtStation.
 
-EXCLUDE: Text, watermarks, deformed anatomy, extra fingers, artificial look.
+EXCLUDE: Text, watermarks, deformed anatomy, extra fingers, blurry, low quality, multiple people.
 """
 
 # ----------------------------------------------------------------------------
