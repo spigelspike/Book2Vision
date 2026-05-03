@@ -151,11 +151,11 @@ async def _generate_image_with_deapi(session, prompt, output_path, description, 
         return None
 
     try:
-        headers = {
+        # Use clean headers for deAPI - do NOT merge DEFAULT_HEADERS (browser Accept header conflicts)
+        api_headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
-            "Accept": "application/json",
-            **DEFAULT_HEADERS
+            "Accept": "application/json"
         }
         
         payload = {
@@ -169,10 +169,10 @@ async def _generate_image_with_deapi(session, prompt, output_path, description, 
             "negative_prompt": NEGATIVE_PROMPT
         }
         
-        print(f" deAPI Request: {description}")
+        print(f" deAPI Request (v2): {description}")
         async with session.post(
-            "https://api.deapi.ai/api/v1/client/txt2img",
-            headers=headers,
+            "https://api.deapi.ai/api/v2/images/generations",
+            headers=api_headers,
             json=payload,
             timeout=aiohttp.ClientTimeout(total=30)
         ) as response:
@@ -186,24 +186,27 @@ async def _generate_image_with_deapi(session, prompt, output_path, description, 
             request_id = data.get("data", {}).get("request_id")
             
             if not request_id:
+                print(f" deAPI: No request_id returned for {description}")
                 return None
+            
+            print(f" deAPI Job ID: {request_id}")
         
-        # Poll
-        for _ in range(30): # Increased polling to 60s
+        # Poll using v2 jobs endpoint
+        for _ in range(30):
             await asyncio.sleep(2)
             async with session.get(
-                f"https://api.deapi.ai/api/v1/client/request-status/{request_id}",
-                headers=headers,
+                f"https://api.deapi.ai/api/v2/jobs/{request_id}",
+                headers=api_headers,
                 timeout=aiohttp.ClientTimeout(total=10)
             ) as status_res:
                 if status_res.status != 200: continue
                 
                 status_data = await status_res.json()
                 status = status_data.get("data", {}).get("status")
-                result_url = status_data.get("data", {}).get("result_url") or status_data.get("data", {}).get("result")
+                result_url = status_data.get("data", {}).get("result_url")
                 
-                if status in ["completed", "done"] and result_url:
-                    # Download
+                if status == "done" and result_url:
+                    # Download the generated image
                     async with session.get(result_url, timeout=aiohttp.ClientTimeout(total=60)) as img_res:
                         if img_res.status == 200:
                             content = await img_res.read()
@@ -212,7 +215,7 @@ async def _generate_image_with_deapi(session, prompt, output_path, description, 
                             print(f" deAPI Saved: {output_path}")
                             return output_path
                     break
-                elif status == "failed":
+                elif status == "error":
                     print(f" deAPI Generation Failed: {description}")
                     return None
     except Exception as e:
@@ -634,12 +637,11 @@ async def generate_poster_with_deapi(title, author, output_dir, style="cinematic
         print(f" Generating cover with deAPI (Flux1schnell) for: {title}")
         
         try:
-            # Step 1: Request image generation
-            headers = {
+            # Step 1: Request image generation via v2 endpoint
+            api_headers = {
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
-                "Accept": "application/json",
-                **DEFAULT_HEADERS
+                "Accept": "application/json"
             }
             
             payload = {
@@ -653,10 +655,10 @@ async def generate_poster_with_deapi(title, author, output_dir, style="cinematic
                 "negative_prompt": NEGATIVE_PROMPT
             }
             
-            print(f" Sending request to deAPI...")
+            print(f" Sending request to deAPI (v2)...")
             async with session.post(
-                "https://api.deapi.ai/api/v1/client/txt2img",
-                headers=headers,
+                "https://api.deapi.ai/api/v2/images/generations",
+                headers=api_headers,
                 json=payload,
                 timeout=aiohttp.ClientTimeout(total=30)
             ) as response:
@@ -670,9 +672,9 @@ async def generate_poster_with_deapi(title, author, output_dir, style="cinematic
                 if not request_id:
                     raise Exception("No request_id in deAPI response")
                 
-                print(f" Request ID: {request_id}")
+                print(f" deAPI Job ID: {request_id}")
             
-            # Step 2: Poll for result
+            # Step 2: Poll for result using v2 jobs endpoint
             max_attempts = 30
             poll_interval = 2
             result_url = None
@@ -681,8 +683,8 @@ async def generate_poster_with_deapi(title, author, output_dir, style="cinematic
                 await asyncio.sleep(poll_interval)
                 
                 async with session.get(
-                    f"https://api.deapi.ai/api/v1/client/request-status/{request_id}",
-                    headers=headers,
+                    f"https://api.deapi.ai/api/v2/jobs/{request_id}",
+                    headers=api_headers,
                     timeout=aiohttp.ClientTimeout(total=10)
                 ) as status_response:
                     if status_response.status != 200:
@@ -690,12 +692,12 @@ async def generate_poster_with_deapi(title, author, output_dir, style="cinematic
                     
                     status_data = await status_response.json()
                     status = status_data.get("data", {}).get("status")
-                    result_url = status_data.get("data", {}).get("result_url") or status_data.get("data", {}).get("result")
+                    result_url = status_data.get("data", {}).get("result_url")
                     
-                    if status in ["completed", "done"] and result_url:
+                    if status == "done" and result_url:
                         print(f" Generation complete!")
                         break
-                    elif status == "failed":
+                    elif status == "error":
                         raise Exception("deAPI generation failed")
             
             if not result_url:
@@ -724,13 +726,22 @@ async def generate_poster_with_deapi(title, author, output_dir, style="cinematic
             return await _generate_poster_fallback(session, title, author, output_dir, style, theme)
 
 async def _generate_poster_fallback(session, title, author, output_dir, style, theme):
-    """Fallback to Pollinations for cover generation."""
+    """Fallback to Pollinations for cover generation with a detailed, relevant prompt."""
     try:
         print(" Falling back to Pollinations (Vertical Mode)...")
-        prompt = f"Book cover for '{title}' by {author}. {style} style. {theme[:100]}. Vertical book cover, high quality, 8k."
+        # Build a rich, descriptive prompt that captures the book's essence
+        theme_snippet = theme[:200] if theme else "epic storytelling"
+        prompt = (
+            f"Professional book cover artwork, vertical portrait composition. "
+            f"Title: '{title}' by {author}. "
+            f"Visual style: {style}. "
+            f"Story themes: {theme_snippet}. "
+            f"Cinematic lighting, dramatic composition, rich vivid colors, "
+            f"masterpiece quality, trending on artstation, detailed illustration, "
+            f"no text, no watermark, no border"
+        )
         encoded_prompt = urllib.parse.quote(prompt)
         seed = abs(hash(title)) % (2**31)
-        # Updated to use authenticated gen.pollinations.ai endpoint
         image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed}&width=1080&height=1920&model=flux&nologo=true"
         
         safe_title = "".join([c if c.isalnum() else "_" for c in title])[:50]
