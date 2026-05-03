@@ -80,10 +80,7 @@ async def generate_entity_image(entity_name, entity_role, output_dir, seed=None)
     image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed}&width=1024&height=1024&model=flux&nologo=true"
     
     headers = DEFAULT_HEADERS.copy()
-    pollinations_key = os.getenv("POLLINATIONS_API_KEY")
-    if pollinations_key:
-        headers["Authorization"] = f"Bearer {pollinations_key}"
-        
+    
     async with aiohttp.ClientSession(headers=headers) as session:
         return await _download_image_async(session, image_url, img_path, f"Entity: {entity_name}")
 
@@ -321,10 +318,6 @@ async def generate_character_portrait(
         print(f" Generating portrait for {name} with Pollinations...")
         encoded_prompt = urllib.parse.quote(prompt[:1000])  # URL length limit
         seed = character_seed
-        # Add API key if available
-        api_key = os.getenv("POLLINATIONS_API_KEY")
-        if api_key:
-            session.headers["Authorization"] = f"Bearer {api_key}"
         
         image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed}&width=768&height=1024&model=flux&nologo=true"
         return await _download_image_async(session, image_url, img_path, f"Portrait: {name}")
@@ -361,9 +354,6 @@ async def generate_character_sheet(
         print(f" Generating sheet for {name} with Pollinations...")
         encoded_prompt = urllib.parse.quote(prompt[:1000])
         seed = get_character_seed(name)
-        api_key = os.getenv("POLLINATIONS_API_KEY")
-        if api_key:
-            session.headers["Authorization"] = f"Bearer {api_key}"
             
         image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed}&width=1920&height=1080&model=flux&nologo=true"
         return await _download_image_async(session, image_url, img_path, f"Sheet: {name}")
@@ -464,9 +454,6 @@ async def generate_images(semantic_map, output_dir, style="manga", seed=None, ti
     
     # Create a single session for all requests in this batch
     headers = DEFAULT_HEADERS.copy()
-    api_key = os.getenv("POLLINATIONS_API_KEY")
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
         
     async with aiohttp.ClientSession(headers=headers) as session:
         tasks = []
@@ -744,7 +731,7 @@ async def _generate_poster_fallback(session, title, author, output_dir, style, t
         encoded_prompt = urllib.parse.quote(prompt)
         seed = abs(hash(title)) % (2**31)
         # Updated to use authenticated gen.pollinations.ai endpoint
-        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed}&width=1080&height=1920&model=flux&nologo=true&enhance=true"
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed}&width=1080&height=1920&model=flux&nologo=true"
         
         safe_title = "".join([c if c.isalnum() else "_" for c in title])[:50]
         filename = f"cover_fallback_{safe_title}.jpg"

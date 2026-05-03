@@ -141,7 +141,17 @@ function setupEventListeners() {
     }
 
     // Audio
-    if (btnAudio) btnAudio.addEventListener('click', generateAudio);
+    if (btnAudio) btnAudio.addEventListener('click', () => {
+        // If audio is already loaded/generated, just play it. Otherwise open picker.
+        if (state.audiobookUrl) {
+            audioPlayer.play();
+            isPlaying = true;
+            btnPlayPause.textContent = "⏸";
+            document.querySelector('.audio-player-ui').classList.add('playing');
+        } else {
+            openAudioPicker('audiobook');
+        }
+    });
     if (btnPlayPause) btnPlayPause.addEventListener('click', toggleAudio);
     if (audioPlayer) {
         audioPlayer.addEventListener('timeupdate', updateProgress);
@@ -172,7 +182,13 @@ function setupEventListeners() {
 
     // Visuals
     if (btnVisuals) btnVisuals.addEventListener('click', openStylePicker);
-    if (btnPodcast) btnPodcast.addEventListener('click', generatePodcast);
+    if (btnPodcast) btnPodcast.addEventListener('click', () => {
+        if (document.getElementById('podcast-player-ui').classList.contains('hidden') === false && document.getElementById('podcast-player-ui').style.display !== 'none') {
+            // Already showing, do nothing or just play
+        } else {
+            openAudioPicker('podcast');
+        }
+    });
 
     // Chatbot FAB + Close button
     if (chatbotFab) chatbotFab.addEventListener('click', toggleChat);
@@ -621,7 +637,64 @@ function closeStylePicker(e) {
     if (overlay) overlay.classList.remove('open');
 }
 
-/** User picked a style — close picker and generate visuals */
+
+
+// --- Audio Picker Modal ---
+let pendingAudioAction = null;
+
+function openAudioPicker(type) {
+    pendingAudioAction = type;
+    const modal = document.getElementById('audio-picker-overlay');
+    const title = document.getElementById('audio-picker-title');
+    if (title) title.textContent = type === 'podcast' ? 'Generate Podcast' : 'Generate Audiobook';
+    
+    // Load current settings into modal
+    const settings = getSettings();
+    const providerSelect = document.getElementById('modal-audio-provider');
+    const voiceInput = document.getElementById('modal-voice-id');
+    
+    if (providerSelect) providerSelect.value = settings.audioProvider || 'pollinations';
+    if (voiceInput) voiceInput.value = settings.voiceId || 'nova';
+
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.classList.remove('hidden');
+    }
+}
+
+function closeAudioPicker(e) {
+    if (e && e.target !== document.getElementById('audio-picker-overlay')) return;
+    const modal = document.getElementById('audio-picker-overlay');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.add('hidden');
+    }
+}
+
+function confirmAudioPicker() {
+    const providerSelect = document.getElementById('modal-audio-provider');
+    const voiceInput = document.getElementById('modal-voice-id');
+    
+    const newSettings = {
+        ...getSettings(),
+        audioProvider: providerSelect ? providerSelect.value : 'pollinations',
+        voiceId: voiceInput ? voiceInput.value : 'nova'
+    };
+    saveSettings(newSettings);
+    
+    // Also update main settings inputs if they exist on the page
+    const mainProviderSelect = document.getElementById('audio-provider');
+    if (mainProviderSelect) mainProviderSelect.value = newSettings.audioProvider;
+    
+    closeAudioPicker();
+    
+    if (pendingAudioAction === 'podcast') {
+        generatePodcast();
+    } else {
+        generateAudio();
+    }
+}
+
 function pickStyleAndGenerate(style) {
     closeStylePicker();
     // Update the hidden <select> to keep state in sync
