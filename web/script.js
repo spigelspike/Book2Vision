@@ -357,6 +357,25 @@ function renderEntities(entities) {
 
     entityCount.textContent = entities.length;
 
+    // Ensure global tooltip element exists (attached to body, not inside panel)
+    let globalTooltip = document.getElementById('entity-global-tooltip');
+    if (!globalTooltip) {
+        globalTooltip = document.createElement('div');
+        globalTooltip.id = 'entity-global-tooltip';
+        globalTooltip.className = 'entity-tooltip';
+        globalTooltip.innerHTML = `
+            <div class="entity-tooltip-header">
+                <img src="" class="entity-tooltip-img" id="global-tooltip-img">
+                <div>
+                    <div class="entity-tooltip-name" id="global-tooltip-name"></div>
+                    <div class="entity-tooltip-role" id="global-tooltip-role"></div>
+                </div>
+            </div>
+            <div class="entity-tooltip-body" id="global-tooltip-body"></div>
+        `;
+        document.body.appendChild(globalTooltip);
+    }
+
     // Create all cards first with placeholder images
     const imagePromises = [];
 
@@ -378,14 +397,7 @@ function renderEntities(entities) {
 
         const card = document.createElement('div');
         card.className = 'nb-source-item fade-in-element';
-        card.style.position = 'relative';
         const imgId = `img-${name.replace(/[^a-zA-Z0-9]/g, '')}`;
-
-        // Build tooltip content
-        let tooltipDetails = '';
-        if (description) tooltipDetails += `<div class="entity-tooltip-row"><span class="entity-tooltip-label">Appearance:</span> ${description}</div>`;
-        if (outfit) tooltipDetails += `<div class="entity-tooltip-row"><span class="entity-tooltip-label">Outfit:</span> ${outfit}</div>`;
-        if (signatureProp && signatureProp.toLowerCase() !== 'none') tooltipDetails += `<div class="entity-tooltip-row"><span class="entity-tooltip-label">Signature:</span> ${signatureProp}</div>`;
 
         card.innerHTML = `
             <div class="source-icon" id="${imgId}-wrap"><img src="https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random" class="entity-avatar" id="${imgId}" style="width:36px;height:36px;border-radius:var(--radius-sm);object-fit:cover;"></div>
@@ -394,17 +406,57 @@ function renderEntities(entities) {
                 <p>${role}</p>
             </div>
             <span class="source-check">✓</span>
-            <div class="entity-tooltip" id="tooltip-${imgId}">
-                <div class="entity-tooltip-header">
-                    <img src="https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&size=128" class="entity-tooltip-img" id="tooltip-img-${imgId}">
-                    <div>
-                        <div class="entity-tooltip-name">${name}</div>
-                        <div class="entity-tooltip-role">${role}</div>
-                    </div>
-                </div>
-                ${tooltipDetails ? `<div class="entity-tooltip-body">${tooltipDetails}</div>` : ''}
-            </div>
         `;
+
+        // Store entity data on the card element for the tooltip
+        card.dataset.entityName = name;
+        card.dataset.entityRole = role;
+        card.dataset.entityDesc = description;
+        card.dataset.entityOutfit = outfit;
+        card.dataset.entityProp = signatureProp;
+        card.dataset.entityImgId = imgId;
+
+        // Hover handlers to show/hide global tooltip
+        card.addEventListener('mouseenter', (e) => {
+            const rect = card.getBoundingClientRect();
+            const tt = document.getElementById('entity-global-tooltip');
+            const avatarImg = document.getElementById(card.dataset.entityImgId);
+
+            // Populate tooltip content
+            document.getElementById('global-tooltip-name').textContent = card.dataset.entityName;
+            document.getElementById('global-tooltip-role').textContent = card.dataset.entityRole;
+            document.getElementById('global-tooltip-img').src = avatarImg ? avatarImg.src : `https://ui-avatars.com/api/?name=${encodeURIComponent(card.dataset.entityName)}&background=random&size=128`;
+
+            let bodyHtml = '';
+            if (card.dataset.entityDesc) bodyHtml += `<div class="entity-tooltip-row"><span class="entity-tooltip-label">Appearance:</span> ${card.dataset.entityDesc}</div>`;
+            if (card.dataset.entityOutfit) bodyHtml += `<div class="entity-tooltip-row"><span class="entity-tooltip-label">Outfit:</span> ${card.dataset.entityOutfit}</div>`;
+            if (card.dataset.entityProp && card.dataset.entityProp.toLowerCase() !== 'none') bodyHtml += `<div class="entity-tooltip-row"><span class="entity-tooltip-label">Signature:</span> ${card.dataset.entityProp}</div>`;
+            document.getElementById('global-tooltip-body').innerHTML = bodyHtml;
+
+            // Position: to the right of the card
+            tt.style.left = (rect.right + 12) + 'px';
+            tt.style.top = rect.top + 'px';
+
+            // If tooltip would go off-screen right, show to the left instead
+            const ttWidth = 290;
+            if (rect.right + 12 + ttWidth > window.innerWidth) {
+                tt.style.left = (rect.left - ttWidth - 12) + 'px';
+            }
+
+            // If tooltip would go off-screen bottom, align to bottom
+            const ttHeight = tt.offsetHeight || 200;
+            if (rect.top + ttHeight > window.innerHeight) {
+                tt.style.top = Math.max(8, window.innerHeight - ttHeight - 8) + 'px';
+            }
+
+            tt.classList.add('visible');
+        });
+
+        card.addEventListener('mouseleave', () => {
+            const tt = document.getElementById('entity-global-tooltip');
+            tt.classList.remove('visible');
+        });
+
         entitiesList.appendChild(card);
 
         // Queue image fetch for parallel execution

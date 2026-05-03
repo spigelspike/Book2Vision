@@ -301,39 +301,26 @@
   margin-bottom: 0.35rem;
 }
 
-/* ── Entity Hover Tooltip ── */
+/* ── Entity Hover Tooltip (Global, position:fixed on body) ── */
 .entity-tooltip {
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
+  position: fixed;
+  z-index: 9999;
   width: 280px;
   background: rgba(18, 18, 24, 0.97);
   border: 1px solid rgba(127, 90, 240, 0.25);
   border-radius: 14px;
   padding: 0.85rem;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(127, 90, 240, 0.15);
-  z-index: 100;
   pointer-events: none;
   opacity: 0;
-  transform: translateX(-50%) translateY(6px);
-  transition: opacity 0.25s ease, transform 0.25s ease;
+  transform: translateX(6px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
   backdrop-filter: blur(20px);
 }
 
-.nb-source-item:hover .entity-tooltip {
+.entity-tooltip.visible {
   opacity: 1;
-  transform: translateX(-50%) translateY(0);
-  pointer-events: auto;
-}
-
-/* Position tooltip to the right if it would clip the left edge */
-.nb-source-item:first-child .entity-tooltip {
-  left: 0;
-  transform: translateX(0) translateY(6px);
-}
-.nb-source-item:first-child:hover .entity-tooltip {
-  transform: translateX(0) translateY(0);
+  transform: translateX(0);
 }
 
 .entity-tooltip-header {
