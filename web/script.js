@@ -4,6 +4,19 @@
 
 const API_BASE = "/api";
 
+// ── Auth Header Helper ────────────────────────────────────────────────────
+// Attaches the Supabase JWT to API calls so the backend can identify the user
+async function getAuthHeaders(extra = {}) {
+    try {
+        if (typeof supabaseClient !== 'undefined') {
+            const { data } = await supabaseClient.auth.getSession();
+            const token = data?.session?.access_token;
+            if (token) return { 'Authorization': `Bearer ${token}`, ...extra };
+        }
+    } catch (e) { /* supabase not available on this page */ }
+    return { ...extra };
+}
+
 // DOM Elements
 const dropZone = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
@@ -52,7 +65,8 @@ let totalImages = 0;
 
 // Default Settings
 const DEFAULT_SETTINGS = {
-    voiceId: "21m00Tcm4TlvDq8ikWAM",
+    audioProvider: "pollinations",
+    voiceId: "pNInz6obpgDQGcFmaJgB", // Adam (deep voice)
     stability: 0.5,
     similarity: 0.75,
     styleStrength: 0.0,
@@ -157,7 +171,7 @@ function setupEventListeners() {
     }
 
     // Visuals
-    if (btnVisuals) btnVisuals.addEventListener('click', () => generateVisuals());
+    if (btnVisuals) btnVisuals.addEventListener('click', openStylePicker);
     if (btnPodcast) btnPodcast.addEventListener('click', generatePodcast);
 
     // Chatbot FAB + Close button
@@ -170,6 +184,22 @@ function setupEventListeners() {
     if (qaInput) {
         qaInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') handleQASubmit();
+        });
+    }
+
+    // Provider Change Event
+    const providerSelect = document.getElementById('audio-provider');
+    if (providerSelect) {
+        providerSelect.addEventListener('change', (e) => {
+            const voiceCloneSettings = document.getElementById('voice-clone-settings');
+            if (e.target.value === 'voice_clone') {
+                voiceCloneSettings.classList.remove('hidden');
+                voiceCloneSettings.style.display = 'flex';
+                voiceCloneSettings.style.flexDirection = 'column';
+            } else {
+                voiceCloneSettings.classList.add('hidden');
+                voiceCloneSettings.style.display = 'none';
+            }
         });
     }
 }
@@ -249,12 +279,6 @@ function loadDashboard(data, filename) {
     heroSection.classList.add('hidden');
     dashboardSection.classList.remove('hidden');
 
-    const fab = document.getElementById('chatbot-fab');
-    if (fab) {
-        fab.classList.remove('hidden');
-        fab.style.display = 'flex'; // Force display
-        fab.style.zIndex = '9999'; // Force z-index
-    }
 
     // Set Info
     bookTitle.textContent = filename || data.title || "Unknown Title";
@@ -331,15 +355,16 @@ function renderEntities(entities) {
         }
 
         const card = document.createElement('div');
-        card.className = 'entity-card fade-in-element';
+        card.className = 'nb-source-item fade-in-element';
         const imgId = `img-${name.replace(/[^a-zA-Z0-9]/g, '')}`;
 
         card.innerHTML = `
-            <img src="https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random" class="entity-avatar" id="${imgId}">
-            <div class="entity-info">
+            <div class="source-icon" id="${imgId}-wrap"><img src="https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random" class="entity-avatar" id="${imgId}" style="width:36px;height:36px;border-radius:var(--radius-sm);object-fit:cover;"></div>
+            <div class="source-meta">
                 <h4>${name}</h4>
                 <p>${role}</p>
             </div>
+            <span class="source-check">✓</span>
         `;
         entitiesList.appendChild(card);
 
@@ -393,16 +418,18 @@ async function generateAudio() {
     const provider = document.getElementById('audio-provider').value;
 
     try {
+        const payload = {
+            text: currentStoryText.substring(0, 3000), // Send only what's needed (preview)
+            voice_id: settings.voiceId,
+            stability: settings.stability,
+            similarity_boost: settings.similarity,
+            provider: provider,
+        };
+
         const res = await fetch(`${API_BASE}/generate/audio`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                text: currentStoryText.substring(0, 3000), // Send only what's needed (preview)
-                voice_id: settings.voiceId,
-                stability: settings.stability,
-                similarity_boost: settings.similarity,
-                provider: provider
-            })
+            body: JSON.stringify(payload)
         });
 
         if (!res.ok) {
@@ -418,6 +445,7 @@ async function generateAudio() {
 
         // Auto play when ready
         audioPlayer.oncanplay = () => {
+            showAudioDock();
             toggleAudio();
             audioPlayer.oncanplay = null; // Remove listener
         };
@@ -438,6 +466,9 @@ function toggleAudio() {
         return;
     }
 
+    // Show the audio dock when user tries to play
+    showAudioDock();
+
     // Prevent race conditions from rapid clicking
     if (isTogglingAudio) return;
     isTogglingAudio = true;
@@ -448,7 +479,7 @@ function toggleAudio() {
             playPromise.then(() => {
                 isPlaying = true;
                 btnPlayPause.textContent = "⏸";
-                ui.classList.add('playing');
+                if (ui) ui.classList.add('playing');
             }).catch(e => {
                 if (e.name === 'AbortError') {
                     // Ignore abort errors caused by rapid pausing
@@ -467,8 +498,17 @@ function toggleAudio() {
         audioPlayer.pause();
         isPlaying = false;
         btnPlayPause.textContent = "▶";
-        ui.classList.remove('playing');
+        if (ui) ui.classList.remove('playing');
         isTogglingAudio = false;
+    }
+}
+
+/** Reveals the pinned audio dock at the bottom of the center panel */
+function showAudioDock() {
+    const dock = document.getElementById('nb-audio-dock');
+    if (dock && !dock.classList.contains('visible')) {
+        dock.classList.add('visible');
+        dock.setAttribute('aria-hidden', 'false');
     }
 }
 
@@ -492,11 +532,103 @@ function formatTime(seconds) {
     return `${min}:${sec < 10 ? '0' : ''}${sec}`;
 }
 
+// ============================================
+// VOICE CLONING (COLAB)
+// ============================================
+
+async function uploadVoiceSample(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (!file.name.toLowerCase().endsWith('.wav')) {
+        showToast("Please upload a .wav file for voice cloning.", "error");
+        return;
+    }
+
+    const btn = document.getElementById('btn-upload-voice');
+    const originalText = btn.textContent;
+    btn.innerHTML = '<span class="icon">⏳</span> Uploading...';
+    btn.disabled = true;
+
+    const formData = new FormData();
+    formData.append('voice_sample', file);
+
+    try {
+        const res = await fetch(`${API_BASE}/upload-voice-sample`, {
+            method: 'POST',
+            body: formData
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || "Upload failed");
+        }
+
+        btn.textContent = "✅ Sample Uploaded";
+        btn.classList.add("btn-success");
+        showToast("Voice sample uploaded successfully!", "success");
+        setTimeout(() => {
+            btn.textContent = "Upload Different Sample";
+            btn.classList.remove("btn-success");
+        }, 3000);
+
+    } catch (e) {
+        showToast(e.message, "error");
+        btn.textContent = originalText;
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function setColabUrl() {
+    const urlInput = document.getElementById('colab-url').value;
+    if (!urlInput) return;
+
+    try {
+        const res = await fetch(`${API_BASE}/set-colab-url`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: urlInput })
+        });
+
+        if (res.ok) {
+            showToast("Colab URL linked successfully", "success");
+        } else {
+            showToast("Failed to link Colab URL", "error");
+        }
+    } catch (e) {
+        console.error("Error setting Colab URL:", e);
+    }
+}
+
 // --- Visuals ---
 
 // ============================================
-// VISUAL GENERATION
+// VISUAL STYLE PICKER + GENERATION
 // ============================================
+
+/** Opens the art-style picker modal */
+function openStylePicker() {
+    const overlay = document.getElementById('style-picker-overlay');
+    if (overlay) overlay.classList.add('open');
+}
+
+/** Closes the art-style picker modal.
+ *  If called from the overlay click, only close if clicking the backdrop itself. */
+function closeStylePicker(e) {
+    if (e && e.target !== e.currentTarget) return; // clicked inside modal, not backdrop
+    const overlay = document.getElementById('style-picker-overlay');
+    if (overlay) overlay.classList.remove('open');
+}
+
+/** User picked a style — close picker and generate visuals */
+function pickStyleAndGenerate(style) {
+    closeStylePicker();
+    // Update the hidden <select> to keep state in sync
+    const sel = document.getElementById('style-select');
+    if (sel) sel.value = style;
+    generateVisuals(style);
+}
 
 async function generateVisuals(styleOverride = null) {
     const originalText = btnVisuals.innerHTML;
@@ -709,6 +841,9 @@ async function generatePodcast() {
     btnPodcast.innerHTML = '<span class="icon">⏳</span> Scripting...';
     btnPodcast.disabled = true;
 
+    // Show the audio dock when podcast starts
+    showAudioDock();
+
     // Stop Audiobook if playing
     if (isPlaying) {
         toggleAudio();
@@ -873,7 +1008,7 @@ async function handleQASubmit() {
 let msgCounter = 0;
 function addChatMessage(text, type) {
     const msg = document.createElement('div');
-    msg.className = `chat-message ${type} fade-in-element`;
+    msg.className = `nb-chat-msg ${type}`;
     msg.textContent = text;
     const id = 'msg-' + Date.now() + '-' + (msgCounter++);
     msg.id = id;
@@ -895,7 +1030,7 @@ async function fetchSuggestedQuestions() {
             qaSuggestions.innerHTML = '';
             data.questions.forEach(q => {
                 const chip = document.createElement('span');
-                chip.className = 'chip fade-in-element';
+                chip.className = 'nb-chip';
                 chip.textContent = q;
                 chip.onclick = () => {
                     qaInput.value = q;
@@ -1008,12 +1143,15 @@ async function startImmersiveMode() {
 
         // 2. Request Immersive Audio
         const settings = getSettings();
+        const providerSelect = document.getElementById('audio-provider');
+        const providerVal = providerSelect ? providerSelect.value : (settings.voiceId === "21m00Tcm4TlvDq8ikWAM" ? "elevenlabs" : "deepgram");
+        
         const res = await fetch(`${API_BASE}/generate/immersive_audio`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 voice_id: settings.voiceId,
-                provider: settings.voiceId === "21m00Tcm4TlvDq8ikWAM" ? "elevenlabs" : "deepgram" // Simple logic
+                provider: providerVal
             })
         });
 
@@ -1493,7 +1631,10 @@ function loadSettingsUI() {
     const settings = getSettings();
 
     const voiceId = document.getElementById('voice-id');
-    if (voiceId) voiceId.value = settings.voiceId;
+    if (voiceId) voiceId.value = settings.voiceId || "nova";
+
+    const audioProvider = document.getElementById('audio-provider');
+    if (audioProvider && settings.audioProvider) audioProvider.value = settings.audioProvider;
 
     const stability = document.getElementById('stability');
     if (stability) {
@@ -1520,6 +1661,7 @@ function loadSettingsUI() {
 function saveSettingsUI() {
     const newSettings = {
         voiceId: document.getElementById('voice-id').value,
+        audioProvider: document.getElementById('audio-provider') ? document.getElementById('audio-provider').value : "pollinations",
         stability: parseFloat(document.getElementById('stability').value),
         similarity: parseFloat(document.getElementById('similarity').value),
         styleStrength: parseFloat(document.getElementById('style').value),
@@ -1554,6 +1696,115 @@ window.retryImage = function (url, imgId, spinner) {
 
 init();
 
+// ============================================
+// THREE-PANEL LAYOUT LOGIC
+// ============================================
+
+(function initPanels() {
+    const layout = document.getElementById('panels-layout');
+    if (!layout) return;
+
+    // ── Collapse / Expand ──
+    const btnLeft = document.getElementById('btn-collapse-left');
+    const btnRight = document.getElementById('btn-collapse-right');
+
+    if (btnLeft) {
+        btnLeft.addEventListener('click', () => {
+            layout.classList.toggle('left-collapsed');
+            btnLeft.textContent = layout.classList.contains('left-collapsed') ? '▶' : '◀';
+        });
+    }
+    if (btnRight) {
+        btnRight.addEventListener('click', () => {
+            layout.classList.toggle('right-collapsed');
+            btnRight.textContent = layout.classList.contains('right-collapsed') ? '◀' : '▶';
+        });
+    }
+
+    // ── Drag-to-Resize ──
+    function initResize(handleId, side) {
+        const handle = document.getElementById(handleId);
+        if (!handle) return;
+
+        let startX, startW;
+
+        handle.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            handle.classList.add('dragging');
+            startX = e.clientX;
+            const panel = side === 'left'
+                ? document.getElementById('panel-left')
+                : document.getElementById('panel-right');
+            startW = panel.getBoundingClientRect().width;
+
+            const onMove = (ev) => {
+                const dx = side === 'left' ? ev.clientX - startX : startX - ev.clientX;
+                const newW = Math.max(56, Math.min(500, startW + dx));
+                layout.style.setProperty(side === 'left' ? '--left-w' : '--right-w', newW + 'px');
+            };
+            const onUp = () => {
+                handle.classList.remove('dragging');
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
+    }
+    initResize('resize-left', 'left');
+    initResize('resize-right', 'right');
+
+    // ── Waveform Bars ──
+    const waveform = document.getElementById('pinned-waveform');
+    if (waveform) {
+        for (let i = 0; i < 40; i++) {
+            const bar = document.createElement('div');
+            bar.className = 'wv-bar';
+            bar.style.animationDelay = (Math.random() * 0.5).toFixed(2) + 's';
+            bar.style.animationDuration = (0.5 + Math.random() * 0.5).toFixed(2) + 's';
+            waveform.appendChild(bar);
+        }
+    }
+
+    // ── Volume Slider ──
+    const volSlider = document.getElementById('volume-slider');
+    const ap = document.getElementById('audio-player');
+    if (volSlider && ap) {
+        volSlider.addEventListener('input', (e) => { ap.volume = parseFloat(e.target.value); });
+    }
+
+    // ── Speed Button ──
+    const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
+    let speedIdx = 2;
+    const btnSpeed = document.getElementById('btn-speed');
+    if (btnSpeed && ap) {
+        btnSpeed.addEventListener('click', () => {
+            speedIdx = (speedIdx + 1) % speeds.length;
+            ap.playbackRate = speeds[speedIdx];
+            btnSpeed.textContent = speeds[speedIdx] + 'x';
+        });
+    }
+
+    // ── Sync pinned player state ──
+    const pinned = document.getElementById('nb-audio-pinned');
+    if (ap && pinned) {
+        ap.addEventListener('play', () => { pinned.classList.add('playing'); pinned.classList.remove('paused'); });
+        ap.addEventListener('pause', () => { pinned.classList.remove('playing'); pinned.classList.add('paused'); });
+    }
+
+    // ── Source search filter ──
+    const searchInput = document.getElementById('source-search');
+    if (searchInput) {
+        searchInput.addEventListener('input', () => {
+            const q = searchInput.value.toLowerCase();
+            const items = document.querySelectorAll('#entities-list .nb-source-item, #entities-list .entity-card');
+            items.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                item.style.display = text.includes(q) ? '' : 'none';
+            });
+        });
+    }
+})();
 
 
 
@@ -1718,3 +1969,300 @@ window.initSubtitles = initSubtitles;
 window.updateSubtitles = updateSubtitles;
 window.hideSubtitles = hideSubtitles;
 
+
+
+// ============================================================================
+// THREE-PANEL LAYOUT -- COLLAPSE and RESIZE
+// ============================================================================
+
+(function initPanels() {
+    const layout = document.getElementById('nb-layout');
+    if (!layout) return;
+
+    const btnRight = document.getElementById('btn-collapse-right');
+
+    if (btnRight) {
+        btnRight.addEventListener('click', function() {
+            layout.classList.toggle('right-collapsed');
+            // Rotate the chevron SVG icon
+            const svg = btnRight.querySelector('svg');
+            if (svg) {
+                svg.style.transition = 'transform 0.3s ease';
+                svg.style.transform = layout.classList.contains('right-collapsed')
+                    ? 'rotate(180deg)' : 'rotate(0deg)';
+            }
+        });
+    }
+
+    function makeDraggable(handleId, cssVar, side) {
+        var handle = document.getElementById(handleId);
+        if (!handle) return;
+        var startX, startW;
+        handle.addEventListener('mousedown', function(e) {
+            e.preventDefault();
+            startX = e.clientX;
+            startW = parseInt(getComputedStyle(layout).getPropertyValue(cssVar)) || (side === 'left' ? 260 : 340);
+            handle.classList.add('dragging');
+            function onMove(e) {
+                var delta = side === 'left' ? e.clientX - startX : startX - e.clientX;
+                var newW = Math.max(52, Math.min(500, startW + delta));
+                layout.style.setProperty(cssVar, newW + 'px');
+                if (newW > 60) layout.classList.remove(side === 'left' ? 'left-collapsed' : 'right-collapsed');
+            }
+            function onUp() {
+                handle.classList.remove('dragging');
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            }
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
+    }
+
+    makeDraggable('resize-left',  '--nb-left',  'left');
+    makeDraggable('resize-right', '--nb-right', 'right');
+})();
+
+// ============================================================================
+// ONBOARDING TOUR
+// ============================================================================
+
+(function() {
+    // Tour state
+    let tourActive = false;
+    let tourStep = 0;
+    let tourSteps = [];
+    let spotlightEl = null;
+    let tooltipEl = null;
+
+    // Two sets of steps: one for the hero/upload page, one for the dashboard
+    const HERO_STEPS = [
+        {
+            target: '#drop-zone',
+            title: 'Upload Your Book',
+            desc: 'Drag & drop a PDF, EPUB, or TXT file here — or click Browse to pick one. Our AI will instantly analyze the content.',
+            pos: 'bottom'
+        },
+        {
+            target: '.nav-links',
+            title: 'Navigate Anywhere',
+            desc: 'Switch between Home, your Library of saved books, and learn About the project.',
+            pos: 'bottom'
+        },
+        {
+            target: '.logo',
+            title: 'You\'re All Set! 🚀',
+            desc: 'Upload a book to unlock the full experience — AI audiobooks, visual scenes, podcasts, and an intelligent chat assistant.',
+            pos: 'bottom'
+        }
+    ];
+
+    const DASHBOARD_STEPS = [
+        {
+            target: '#nb-panel-left',
+            title: 'Meet the Characters',
+            desc: 'Every character detected in your book appears here with an AI-generated portrait. Scroll to explore them all.',
+            pos: 'right'
+        },
+        {
+            target: '#qa-chat-container',
+            title: 'Ask Anything',
+            desc: 'Chat with an AI that has read the entire book. Ask about plot twists, character motivations, themes — anything!',
+            pos: 'left'
+        },
+        {
+            target: '.nb-chat-input-bar',
+            title: 'Type Your Question',
+            desc: 'Just type a question and press Enter or click Send. You can also try the suggested questions.',
+            pos: 'top'
+        },
+        {
+            target: '.nb-studio-grid',
+            title: 'Create Content',
+            desc: 'Generate audiobooks, podcasts, visual scenes, or export everything. Each button opens a dedicated workflow.',
+            pos: 'left'
+        },
+        {
+            target: '#nb-panel-right',
+            title: 'Your Creative Studio',
+            desc: 'This panel is your control center for generating and previewing multimedia content from the book. Try Visuals first!',
+            pos: 'left'
+        }
+    ];
+
+    function getActiveSteps() {
+        const dashboard = document.getElementById('dashboard');
+        if (dashboard && !dashboard.classList.contains('hidden')) {
+            return DASHBOARD_STEPS;
+        }
+        return HERO_STEPS;
+    }
+
+    function createSpotlight() {
+        if (spotlightEl) spotlightEl.remove();
+        spotlightEl = document.createElement('div');
+        spotlightEl.className = 'tour-spotlight';
+        document.body.appendChild(spotlightEl);
+        // Click the dark area to dismiss
+        spotlightEl.addEventListener('click', endTour);
+    }
+
+    function createTooltip() {
+        if (tooltipEl) tooltipEl.remove();
+        tooltipEl = document.createElement('div');
+        tooltipEl.className = 'tour-tooltip';
+        document.body.appendChild(tooltipEl);
+    }
+
+    function positionSpotlight(rect, pad) {
+        pad = pad || 8;
+        spotlightEl.style.top    = (rect.top - pad) + 'px';
+        spotlightEl.style.left   = (rect.left - pad) + 'px';
+        spotlightEl.style.width  = (rect.width + pad * 2) + 'px';
+        spotlightEl.style.height = (rect.height + pad * 2) + 'px';
+    }
+
+    function positionTooltip(rect, pos) {
+        tooltipEl.setAttribute('data-pos', pos);
+        var gap = 16;
+        var tw = 320; // tooltip width
+        var th = tooltipEl.offsetHeight || 180;
+
+        var top, left;
+        switch (pos) {
+            case 'bottom':
+                top = rect.bottom + gap;
+                left = rect.left;
+                break;
+            case 'top':
+                top = rect.top - th - gap;
+                left = rect.left;
+                break;
+            case 'right':
+                top = rect.top;
+                left = rect.right + gap;
+                break;
+            case 'left':
+                top = rect.top;
+                left = rect.left - tw - gap;
+                break;
+        }
+
+        // Clamp to viewport
+        left = Math.max(16, Math.min(left, window.innerWidth - tw - 16));
+        top = Math.max(16, Math.min(top, window.innerHeight - th - 16));
+
+        tooltipEl.style.top  = top + 'px';
+        tooltipEl.style.left = left + 'px';
+    }
+
+    function renderTooltip(step, index, total) {
+        var dotsHTML = '';
+        for (var i = 0; i < total; i++) {
+            dotsHTML += '<span class="tour-dot' + (i === index ? ' active' : '') + '"></span>';
+        }
+
+        var isLast = index === total - 1;
+
+        tooltipEl.innerHTML = 
+            '<div class="tour-tooltip-arrow"></div>' +
+            '<div class="tour-step-num">Step ' + (index + 1) + ' of ' + total + '</div>' +
+            '<div class="tour-title">' + step.title + '</div>' +
+            '<div class="tour-desc">' + step.desc + '</div>' +
+            '<div class="tour-nav">' +
+                '<div class="tour-dots">' + dotsHTML + '</div>' +
+                '<div style="display:flex;gap:0.5rem;align-items:center">' +
+                    '<button class="tour-btn-skip" onclick="endTour()">Skip</button>' +
+                    '<button class="tour-btn-next" onclick="nextTourStep()">' + (isLast ? 'Finish ✓' : 'Next →') + '</button>' +
+                '</div>' +
+            '</div>';
+    }
+
+    function showStep(index) {
+        tourStep = index;
+        var steps = getActiveSteps();
+        if (index >= steps.length) { endTour(); return; }
+
+        var step = steps[index];
+        var el = document.querySelector(step.target);
+        if (!el) { 
+            // Skip invisible steps
+            if (index < steps.length - 1) showStep(index + 1);
+            else endTour();
+            return;
+        }
+
+        // Scroll into view if needed
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+        // Small delay for scroll to settle
+        setTimeout(function() {
+            var rect = el.getBoundingClientRect();
+            positionSpotlight(rect);
+            renderTooltip(step, index, steps.length);
+            positionTooltip(rect, step.pos);
+            el.classList.add('tour-highlighted');
+        }, 150);
+    }
+
+    // Public API
+    window.startTour = function(force) {
+        tourActive = true;
+        tourStep = 0;
+        tourSteps = getActiveSteps();
+        createSpotlight();
+        createTooltip();
+        showStep(0);
+    };
+
+    window.nextTourStep = function() {
+        // Remove highlight from current element
+        var steps = getActiveSteps();
+        if (tourStep < steps.length) {
+            var prev = document.querySelector(steps[tourStep].target);
+            if (prev) prev.classList.remove('tour-highlighted');
+        }
+        showStep(tourStep + 1);
+    };
+
+    window.endTour = function() {
+        tourActive = false;
+        // Cleanup highlights
+        document.querySelectorAll('.tour-highlighted').forEach(function(el) {
+            el.classList.remove('tour-highlighted');
+        });
+        if (spotlightEl) { spotlightEl.remove(); spotlightEl = null; }
+        if (tooltipEl) { tooltipEl.remove(); tooltipEl = null; }
+        // Mark as seen
+        localStorage.setItem('b2v_tour_seen', '1');
+    };
+
+    // Auto-start tour for first-time visitors (after page load)
+    window.addEventListener('load', function() {
+        if (!localStorage.getItem('b2v_tour_seen')) {
+            setTimeout(function() { startTour(); }, 800);
+        }
+    });
+
+    // Handle window resize during tour
+    window.addEventListener('resize', function() {
+        if (tourActive && spotlightEl && tooltipEl) {
+            var steps = getActiveSteps();
+            if (tourStep < steps.length) {
+                var el = document.querySelector(steps[tourStep].target);
+                if (el) {
+                    var rect = el.getBoundingClientRect();
+                    positionSpotlight(rect);
+                    positionTooltip(rect, steps[tourStep].pos);
+                }
+            }
+        }
+    });
+
+    // Keyboard: Escape to close, Right arrow / Enter to advance
+    document.addEventListener('keydown', function(e) {
+        if (!tourActive) return;
+        if (e.key === 'Escape') endTour();
+        if (e.key === 'ArrowRight' || e.key === 'Enter') nextTourStep();
+    });
+})();

@@ -37,8 +37,18 @@
             <h3 style="color: var(--secondary);">Audio Generation</h3>
 
             <div class="form-group">
-                <label for="voice-id">Voice ID (ElevenLabs)</label>
-                <input type="text" id="voice-id" class="glass-input" placeholder="Enter Voice ID">
+                <label for="audio-provider">Audio Provider</label>
+                <select id="audio-provider" class="glass-input">
+                    <option value="deepgram">Deepgram (Fast)</option>
+                    <option value="elevenlabs">ElevenLabs (High Quality)</option>
+                    <option value="pollinations">Pollinations (Many Models)</option>
+                    <option value="inbuilt">Inbuilt (Free)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="voice-id">Voice ID / Name</label>
+                <input type="text" id="voice-id" class="glass-input" placeholder="Enter Voice ID or Name (e.g. nova)">
             </div>
 
             <div class="form-group">

@@ -119,7 +119,7 @@ async def extract_character_bible(book_text: str, existing_entities: List[dict] 
     Extract detailed character descriptions from book text.
     Uses Gemini to analyze and create consistent character bibles.
     """
-    print("📚 Extracting character bible from book text...")
+    print(" Extracting character bible from book text...")
     
     prompt = f"""Analyze this story and extract detailed character descriptions for illustration.
 
@@ -174,11 +174,11 @@ Return ONLY valid JSON array, no other text.
                 distinguishing_features=char_data.get("distinguishing_features", "")
             )
         
-        print(f"✅ Extracted {len(characters)} character bibles")
+        print(f" Extracted {len(characters)} character bibles")
         return characters
         
     except Exception as e:
-        print(f"⚠️ Character extraction failed: {e}")
+        print(f" Character extraction failed: {e}")
         # Fallback: use existing entities if provided
         if existing_entities:
             characters = {}
@@ -196,7 +196,7 @@ async def extract_scenes_and_pages(book_text: str) -> Tuple[Dict[str, SceneMemor
     """
     Split book into pages and identify scene information.
     """
-    print("📖 Extracting scenes and splitting into pages...")
+    print(" Extracting scenes and splitting into pages...")
     
     prompt = f"""Analyze this story and:
 1. Identify distinct scenes (location/time changes)
@@ -262,11 +262,11 @@ Return ONLY valid JSON, no other text.
                 scene_id=page_data.get("scene_id", "S1")
             ))
         
-        print(f"✅ Extracted {len(scenes)} scenes and {len(pages)} pages")
+        print(f" Extracted {len(scenes)} scenes and {len(pages)} pages")
         return scenes, pages
         
     except Exception as e:
-        print(f"⚠️ Scene extraction failed: {e}")
+        print(f" Scene extraction failed: {e}")
         # Fallback: split by paragraphs
         paragraphs = [p.strip() for p in book_text.split("\n\n") if p.strip()]
         pages = []
@@ -359,7 +359,7 @@ async def generate_storybook_page(
     import aiohttp
     import os
     
-    print(f"🎨 Generating illustration for page {page.page_number}...")
+    print(f" Generating illustration for page {page.page_number}...")
     
     scene = scenes.get(page.scene_id)
     prompt = build_storybook_prompt(page, world, characters, scene)
@@ -389,10 +389,10 @@ async def generate_storybook_page(
                 page.image_path = result
         
         if page.image_path:
-            print(f"✅ Page {page.page_number} illustration saved: {page.image_path}")
+            print(f" Page {page.page_number} illustration saved: {page.image_path}")
         
     except Exception as e:
-        print(f"❌ Page {page.page_number} generation failed: {e}")
+        print(f" Page {page.page_number} generation failed: {e}")
         page.image_path = None
     
     return page
@@ -421,7 +421,7 @@ async def generate_full_storybook(
         Tuple of (WorldBible, List[StoryPage])
     """
     print("=" * 60)
-    print("📘 STORYBOOK GENERATION STARTED")
+    print(" STORYBOOK GENERATION STARTED")
     print("=" * 60)
     
     # Create world bible
@@ -442,11 +442,11 @@ async def generate_full_storybook(
     
     # Limit pages
     if len(pages) > max_pages:
-        print(f"⚠️ Limiting to {max_pages} pages (from {len(pages)})")
+        print(f" Limiting to {max_pages} pages (from {len(pages)})")
         pages = pages[:max_pages]
     
     # Step 3: Generate illustrations for each page
-    print(f"\n🎨 Generating {len(pages)} page illustrations...")
+    print(f"\n Generating {len(pages)} page illustrations...")
     
     generated_pages = []
     for page in pages:
@@ -460,7 +460,7 @@ async def generate_full_storybook(
     
     successful = sum(1 for p in generated_pages if p.image_path)
     print("=" * 60)
-    print(f"✅ STORYBOOK COMPLETE: {successful}/{len(generated_pages)} pages generated")
+    print(f" STORYBOOK COMPLETE: {successful}/{len(generated_pages)} pages generated")
     print("=" * 60)
     
     return world, generated_pages

@@ -45,7 +45,7 @@ class RateLimitController:
             new_target = time.time() + wait_time
             if new_target > self.global_backoff_until:
                 self.global_backoff_until = new_target
-                print(f"🛑 Global backoff triggered. Pausing all requests for {wait_time:.1f}s...")
+                print(f" Global backoff triggered. Pausing all requests for {wait_time:.1f}s...")
 
 # Initialize global controller
 rate_limiter = RateLimitController(max_concurrent=MAX_CONCURRENT_REQUESTS)
@@ -66,18 +66,18 @@ async def generate_entity_image(entity_name, entity_role, output_dir, seed=None)
     filename = f"entity_{safe_name}.jpg"
     img_path = os.path.join(output_dir, filename)
     
-    # Try DeAPI first - DISABLED, using Pollinations
-    # api_key = os.getenv("DEAPI_API_KEY")
-    # if api_key:
-    #     async with aiohttp.ClientSession(headers=DEFAULT_HEADERS) as session:
-    #         result = await _generate_image_with_deapi(session, prompt, img_path, f"Entity: {entity_name}", width=1024, height=1024)
-    #         if result:
-    #             return result
+    # Try DeAPI first
+    api_key = os.getenv("DEAPI_API_KEY")
+    if api_key:
+        async with aiohttp.ClientSession(headers=DEFAULT_HEADERS) as session:
+            result = await _generate_image_with_deapi(session, prompt, img_path, f"Entity: {entity_name}", width=1024, height=1024)
+            if result:
+                return result
     
     # Fallback to Pollinations
-    print(f"🔄 Falling back to Pollinations for {entity_name}...")
+    print(f" Falling back to Pollinations for {entity_name}...")
     encoded_prompt = urllib.parse.quote(prompt)
-    image_url = f"https://gen.pollinations.ai/image/{encoded_prompt}?seed={seed}&width=1024&height=1024&model=flux&nologo=true"
+    image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed}&width=1024&height=1024&model=flux&nologo=true"
     
     headers = DEFAULT_HEADERS.copy()
     pollinations_key = os.getenv("POLLINATIONS_API_KEY")
@@ -99,49 +99,49 @@ async def _download_image_async(session, url, output_path, description):
             try:
                 # 30s timeout for the request itself
                 timeout = aiohttp.ClientTimeout(total=45) # Increased timeout
-                print(f"⬇️ Starting download for: {description} (Attempt {attempt+1})")
+                print(f" Starting download for: {description} (Attempt {attempt+1})")
                 
                 async with session.get(url, timeout=timeout) as response:
                     if response.status == 200:
                         content = await response.read()
                         # Verify content is actually an image
                         if len(content) < 1000:
-                            print(f"⚠️ Warning: Image content too small for {description}")
+                            print(f" Warning: Image content too small for {description}")
                             continue
                             
                         with open(output_path, 'wb') as handler:
                             handler.write(content)
-                        print(f"✅ Saved: {output_path}")
+                        print(f" Saved: {output_path}")
                         return output_path
                     
                     elif response.status == 429:
                         base_wait = (2 ** (attempt + 1))
                         jitter = random.uniform(0, 1)
                         wait_time = base_wait + jitter
-                        print(f"⚠️ Rate limit (429) for {description}. Backoff {wait_time:.1f}s...")
+                        print(f" Rate limit (429) for {description}. Backoff {wait_time:.1f}s...")
                         await rate_limiter.trigger_backoff(wait_time)
                         await asyncio.sleep(wait_time)
                         
                     elif response.status >= 500:
-                        print(f"⚠️ Server error {response.status} for {description}. Retrying...")
+                        print(f" Server error {response.status} for {description}. Retrying...")
                         await asyncio.sleep(2)
                         
                     else:
-                        print(f"⚠️ Failed to download {description}: {response.status}")
+                        print(f" Failed to download {description}: {response.status}")
                         return None
                                 
             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
                 wait_time = (2 ** (attempt + 1))
-                print(f"❌ Error generating {description} (Attempt {attempt+1}): {e}. Retrying in {wait_time}s...")
+                print(f" Error generating {description} (Attempt {attempt+1}): {e}. Retrying in {wait_time}s...")
                 await asyncio.sleep(wait_time)
             except Exception as e:
-                print(f"❌ Unexpected error for {description}: {e}")
+                print(f" Unexpected error for {description}: {e}")
                 return None
         
         if attempt < (MAX_RETRY_ATTEMPTS - 1):
             await asyncio.sleep(INTER_REQUEST_DELAY_SECONDS)
                 
-    print(f"❌ Failed to generate {description} after all attempts.")
+    print(f" Failed to generate {description} after all attempts.")
     return None
 
 from src.prompts import IMAGE_PROMPT_TEMPLATE, ENTITY_PROMPT_TEMPLATE, TITLE_PROMPT_TEMPLATE, SCENE_PROMPT_TEMPLATE, NEGATIVE_PROMPT, COVER_PROMPT_TEMPLATE
@@ -150,7 +150,7 @@ async def _generate_image_with_deapi(session, prompt, output_path, description, 
     """Helper to generate a single image using deAPI with shared session."""
     api_key = os.getenv("DEAPI_API_KEY")
     if not api_key:
-        print(f"❌ DEAPI_API_KEY missing for {description}")
+        print(f" DEAPI_API_KEY missing for {description}")
         return None
 
     try:
@@ -172,7 +172,7 @@ async def _generate_image_with_deapi(session, prompt, output_path, description, 
             "negative_prompt": NEGATIVE_PROMPT
         }
         
-        print(f"🎨 deAPI Request: {description}")
+        print(f" deAPI Request: {description}")
         async with session.post(
             "https://api.deapi.ai/api/v1/client/txt2img",
             headers=headers,
@@ -181,7 +181,7 @@ async def _generate_image_with_deapi(session, prompt, output_path, description, 
         ) as response:
             if response.status != 200:
                 error_body = await response.text()
-                print(f"❌ deAPI Request Failed: {response.status}")
+                print(f" deAPI Request Failed: {response.status}")
                 print(f"Response: {error_body}")
                 return None
             
@@ -212,14 +212,14 @@ async def _generate_image_with_deapi(session, prompt, output_path, description, 
                             content = await img_res.read()
                             with open(output_path, 'wb') as f:
                                 f.write(content)
-                            print(f"✅ deAPI Saved: {output_path}")
+                            print(f" deAPI Saved: {output_path}")
                             return output_path
                     break
                 elif status == "failed":
-                    print(f"❌ deAPI Generation Failed: {description}")
+                    print(f" deAPI Generation Failed: {description}")
                     return None
     except Exception as e:
-        print(f"⚠️ deAPI Error for {description}: {e}")
+        print(f" deAPI Error for {description}: {e}")
         return None
     return None
 
@@ -318,7 +318,7 @@ async def generate_character_portrait(
     # Use Pollinations for character portraits
     headers = DEFAULT_HEADERS.copy()
     async with aiohttp.ClientSession(headers=headers) as session:
-        print(f"🎨 Generating portrait for {name} with Pollinations...")
+        print(f" Generating portrait for {name} with Pollinations...")
         encoded_prompt = urllib.parse.quote(prompt[:1000])  # URL length limit
         seed = character_seed
         # Add API key if available
@@ -326,7 +326,7 @@ async def generate_character_portrait(
         if api_key:
             session.headers["Authorization"] = f"Bearer {api_key}"
         
-        image_url = f"https://gen.pollinations.ai/image/{encoded_prompt}?seed={seed}&width=768&height=1024&model=flux&nologo=true"
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed}&width=768&height=1024&model=flux&nologo=true"
         return await _download_image_async(session, image_url, img_path, f"Portrait: {name}")
 
 async def generate_character_sheet(
@@ -358,14 +358,14 @@ async def generate_character_sheet(
     
     headers = DEFAULT_HEADERS.copy()
     async with aiohttp.ClientSession(headers=headers) as session:
-        print(f"🎨 Generating sheet for {name} with Pollinations...")
+        print(f" Generating sheet for {name} with Pollinations...")
         encoded_prompt = urllib.parse.quote(prompt[:1000])
         seed = get_character_seed(name)
         api_key = os.getenv("POLLINATIONS_API_KEY")
         if api_key:
             session.headers["Authorization"] = f"Bearer {api_key}"
             
-        image_url = f"https://gen.pollinations.ai/image/{encoded_prompt}?seed={seed}&width=1920&height=1080&model=flux&nologo=true"
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed}&width=1920&height=1080&model=flux&nologo=true"
         return await _download_image_async(session, image_url, img_path, f"Sheet: {name}")
 
 async def generate_all_character_portraits(semantic_map: dict, output_dir: str, style: str = "anime", genre: str = "fantasy") -> list:
@@ -374,7 +374,7 @@ async def generate_all_character_portraits(semantic_map: dict, output_dir: str, 
     """
     entities = semantic_map.get("entities", [])
     if not entities:
-        print("⚠️ No entities found for portrait generation")
+        print(" No entities found for portrait generation")
         return []
     
     portraits = []
@@ -412,7 +412,7 @@ async def generate_all_character_portraits(semantic_map: dict, output_dir: str, 
         if portrait_path:
             portraits.append(portrait_path)
     
-    print(f"✅ Generated {len(portraits)} character portraits")
+    print(f" Generated {len(portraits)} character portraits")
     return portraits
 
 def get_cached_character_visuals() -> dict:
@@ -429,9 +429,9 @@ async def _generate_entity_with_fallback(session, prompt, img_path, description,
         return result
     
     # Fallback to Pollinations
-    print(f"🔄 Falling back to Pollinations for {description}...")
+    print(f" Falling back to Pollinations for {description}...")
     encoded_prompt = urllib.parse.quote(prompt)
-    image_url = f"https://gen.pollinations.ai/image/{encoded_prompt}?seed={seed}&width=1024&height=1024&model={model}&nologo=true"
+    image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed}&width=1024&height=1024&model={model}&nologo=true"
     
     return await _download_image_async(session, image_url, img_path, description)
 
@@ -439,11 +439,12 @@ async def generate_images(semantic_map, output_dir, style="manga", seed=None, ti
     """
     Generates images based on semantic analysis using Pollinations.ai (Flux) for scenes and deAPI for entities.
     """
-    scene_provider = "pollinations"
-    entity_provider = "pollinations"  # Changed to pollinations for entities
+    has_deapi = bool(os.getenv("DEAPI_API_KEY"))
+    scene_provider = "pollinations"  # Hardcoded per user request
+    entity_provider = "deapi" if has_deapi else "pollinations"
     model = "flux"  # Flux Schnell - best quality/speed balance
     print("="*50)
-    print(f"🚀 generate_images() STARTED")
+    print(f" generate_images() STARTED")
     print(f"Scene Provider: {scene_provider}")
     print(f"Entity Provider: {entity_provider}")
     print(f"Model: {model}")
@@ -482,7 +483,7 @@ async def generate_images(semantic_map, output_dir, style="manga", seed=None, ti
             else:
                 encoded_prompt = urllib.parse.quote(prompt)
                 # Updated to use turbo model with 3:2 aspect ratio (less distortion)
-                image_url = f"https://gen.pollinations.ai/image/{encoded_prompt}?seed={seed}&width=1536&height=1024&model={model}&nologo=true"
+                image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed}&width=1536&height=1024&model={model}&nologo=true"
                 tasks.append(_download_image_async(session, image_url, img_path, "Title Page"))
 
         # 2. Scene Images
@@ -564,7 +565,7 @@ async def generate_images(semantic_map, output_dir, style="manga", seed=None, ti
             else:
                 encoded_prompt = urllib.parse.quote(prompt)
                 # Updated dimensions for better quality (3:2 aspect ratio)
-                image_url = f"https://gen.pollinations.ai/image/{encoded_prompt}?seed={seed+200+i}&width=1536&height=1024&model={model}&nologo=true"
+                image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed+200+i}&width=1536&height=1024&model={model}&nologo=true"
                 tasks.append(_download_image_async(session, image_url, img_path, f"Scene {i+1}"))
 
         # 3. Entity Images
@@ -594,7 +595,7 @@ async def generate_images(semantic_map, output_dir, style="manga", seed=None, ti
                 encoded_prompt = urllib.parse.quote(prompt)
                 # Updated to use authenticated gen.pollinations.ai endpoint with selected model
                 # Removed enhance and negative params to fix 400 error
-                image_url = f"https://gen.pollinations.ai/image/{encoded_prompt}?seed={seed+i+1}&width=1024&height=1024&model={model}&nologo=true"
+                image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed+i+1}&width=1024&height=1024&model={model}&nologo=true"
                 tasks.append(_download_image_async(session, image_url, img_path, f"Entity: {name}"))
 
         # Execute all tasks
@@ -615,7 +616,7 @@ async def generate_poster_with_deapi(title, author, output_dir, style="cinematic
     async with aiohttp.ClientSession(headers=DEFAULT_HEADERS) as session:
         api_key = os.getenv("DEAPI_API_KEY")
         if not api_key:
-            print("❌ DEAPI_API_KEY not found for poster generation.")
+            print(" DEAPI_API_KEY not found for poster generation.")
             return await _generate_poster_fallback(session, title, author, output_dir, style, theme)
         
         # Build context string for characters
@@ -643,7 +644,7 @@ async def generate_poster_with_deapi(title, author, output_dir, style="cinematic
         )
         
         seed = abs(hash(title)) % (2**31)
-        print(f"🎨 Generating cover with deAPI (Flux1schnell) for: {title}")
+        print(f" Generating cover with deAPI (Flux1schnell) for: {title}")
         
         try:
             # Step 1: Request image generation
@@ -665,7 +666,7 @@ async def generate_poster_with_deapi(title, author, output_dir, style="cinematic
                 "negative_prompt": NEGATIVE_PROMPT
             }
             
-            print(f"📤 Sending request to deAPI...")
+            print(f" Sending request to deAPI...")
             async with session.post(
                 "https://api.deapi.ai/api/v1/client/txt2img",
                 headers=headers,
@@ -682,7 +683,7 @@ async def generate_poster_with_deapi(title, author, output_dir, style="cinematic
                 if not request_id:
                     raise Exception("No request_id in deAPI response")
                 
-                print(f"✅ Request ID: {request_id}")
+                print(f" Request ID: {request_id}")
             
             # Step 2: Poll for result
             max_attempts = 30
@@ -705,7 +706,7 @@ async def generate_poster_with_deapi(title, author, output_dir, style="cinematic
                     result_url = status_data.get("data", {}).get("result_url") or status_data.get("data", {}).get("result")
                     
                     if status in ["completed", "done"] and result_url:
-                        print(f"✅ Generation complete!")
+                        print(f" Generation complete!")
                         break
                     elif status == "failed":
                         raise Exception("deAPI generation failed")
@@ -714,7 +715,7 @@ async def generate_poster_with_deapi(title, author, output_dir, style="cinematic
                 raise Exception("Polling timed out - no result URL")
             
             # Step 3: Download the image
-            print(f"⬇️ Downloading image from: {result_url}")
+            print(f" Downloading image from: {result_url}")
             async with session.get(result_url, timeout=aiohttp.ClientTimeout(total=60)) as img_response:
                 if img_response.status != 200:
                     raise Exception(f"Failed to download image: {img_response.status}")
@@ -728,22 +729,22 @@ async def generate_poster_with_deapi(title, author, output_dir, style="cinematic
                 with open(output_path, 'wb') as f:
                     f.write(image_data)
                 
-                print(f"✅ Cover saved: {output_path}")
+                print(f" Cover saved: {output_path}")
                 return output_path
         
         except Exception as e:
-            print(f"⚠️ deAPI Cover Generation Failed: {e}")
+            print(f" deAPI Cover Generation Failed: {e}")
             return await _generate_poster_fallback(session, title, author, output_dir, style, theme)
 
 async def _generate_poster_fallback(session, title, author, output_dir, style, theme):
     """Fallback to Pollinations for cover generation."""
     try:
-        print("🔄 Falling back to Pollinations (Vertical Mode)...")
+        print(" Falling back to Pollinations (Vertical Mode)...")
         prompt = f"Book cover for '{title}' by {author}. {style} style. {theme[:100]}. Vertical book cover, high quality, 8k."
         encoded_prompt = urllib.parse.quote(prompt)
         seed = abs(hash(title)) % (2**31)
         # Updated to use authenticated gen.pollinations.ai endpoint
-        image_url = f"https://gen.pollinations.ai/image/{encoded_prompt}?seed={seed}&width=1080&height=1920&model=flux&nologo=true&enhance=true"
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed}&width=1080&height=1920&model=flux&nologo=true&enhance=true"
         
         safe_title = "".join([c if c.isalnum() else "_" for c in title])[:50]
         filename = f"cover_fallback_{safe_title}.jpg"
@@ -751,7 +752,7 @@ async def _generate_poster_fallback(session, title, author, output_dir, style, t
         
         return await _download_image_async(session, image_url, img_path, "Fallback Cover")
     except Exception as e:
-        print(f"❌ Pollinations Fallback Failed: {e}")
+        print(f" Pollinations Fallback Failed: {e}")
         return None
 
 

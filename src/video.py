@@ -19,7 +19,7 @@ async def generate_video_with_deapi(image_path, prompt, output_dir, duration=5):
     """
     api_key = os.getenv("DEAPI_API_KEY")
     if not api_key:
-        print("❌ DEAPI_API_KEY not found for video generation.")
+        print(" DEAPI_API_KEY not found for video generation.")
         return None
     
     try:
@@ -40,7 +40,7 @@ async def generate_video_with_deapi(image_path, prompt, output_dir, duration=5):
         form_data.add_field('duration', str(duration))
         form_data.add_field('model', 'SVD')  # Stable Video Diffusion
         
-        print(f"🎬 Requesting video generation from DepAI...")
+        print(f" Requesting video generation from DepAI...")
         
         async with aiohttp.ClientSession() as session:
             # Step 1: Submit the request
@@ -52,7 +52,7 @@ async def generate_video_with_deapi(image_path, prompt, output_dir, duration=5):
             ) as response:
                 if response.status != 200:
                     error_text = await response.text()
-                    print(f"❌ DepAI video request failed: {response.status}")
+                    print(f" DepAI video request failed: {response.status}")
                     print(f"Response: {error_text}")
                     return None
                 
@@ -60,10 +60,10 @@ async def generate_video_with_deapi(image_path, prompt, output_dir, duration=5):
                 request_id = data.get("data", {}).get("request_id")
                 
                 if not request_id:
-                    print("❌ No request_id in DepAI response")
+                    print(" No request_id in DepAI response")
                     return None
                 
-                print(f"✅ Video request ID: {request_id}")
+                print(f" Video request ID: {request_id}")
             
             # Step 2: Poll for completion
             max_attempts = 60  # 2 minutes max (2s intervals)
@@ -86,24 +86,24 @@ async def generate_video_with_deapi(image_path, prompt, output_dir, duration=5):
                     result_url = status_data.get("data", {}).get("result_url") or status_data.get("data", {}).get("result")
                     
                     if status in ["completed", "done"] and result_url:
-                        print(f"✅ Video generation complete!")
+                        print(f" Video generation complete!")
                         break
                     elif status == "failed":
-                        print(f"❌ DepAI video generation failed")
+                        print(f" DepAI video generation failed")
                         return None
                     
                     if attempt % 10 == 0:
-                        print(f"⏳ Waiting for video... ({attempt * poll_interval}s elapsed)")
+                        print(f" Waiting for video... ({attempt * poll_interval}s elapsed)")
             
             if not result_url:
-                print("❌ Video generation timed out")
+                print(" Video generation timed out")
                 return None
             
             # Step 3: Download the video
-            print(f"⬇️ Downloading video from: {result_url}")
+            print(f" Downloading video from: {result_url}")
             async with session.get(result_url, timeout=aiohttp.ClientTimeout(total=120)) as video_response:
                 if video_response.status != 200:
-                    print(f"❌ Failed to download video: {video_response.status}")
+                    print(f" Failed to download video: {video_response.status}")
                     return None
                 
                 video_data = await video_response.read()
@@ -115,11 +115,11 @@ async def generate_video_with_deapi(image_path, prompt, output_dir, duration=5):
                 with open(output_path, 'wb') as f:
                     f.write(video_data)
                 
-                print(f"✅ Video saved: {output_path}")
+                print(f" Video saved: {output_path}")
                 return output_path
     
     except Exception as e:
-        print(f"⚠️ DepAI video generation error: {e}")
+        print(f" DepAI video generation error: {e}")
         import traceback
         traceback.print_exc()
         return None

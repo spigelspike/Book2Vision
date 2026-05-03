@@ -52,7 +52,8 @@ async def extract_text_from_pdf(file_path):
         return await extract_text_with_gemini(file_path)
         
     # Return dict for consistency if local extraction worked
-    return {"title": "Extracted PDF", "body": text, "full_text": text}
+    title = os.path.splitext(os.path.basename(file_path))[0].replace("_", " ").replace("-", " ").title()
+    return {"title": title, "body": text, "full_text": text}
 
 async def extract_text_with_gemini(file_path):
     """
@@ -257,7 +258,8 @@ async def extract_text_from_txt(file_path):
     def read_txt():
         with open(file_path, 'r', encoding='utf-8') as f:
             text = f.read()
-            return {"title": "Text File", "body": text, "full_text": text}
+            title = os.path.splitext(os.path.basename(file_path))[0].replace("_", " ").replace("-", " ").title()
+            return {"title": title, "body": text, "full_text": text}
     return await asyncio.to_thread(read_txt)
 
 async def extract_text_from_epub(file_path):
@@ -270,7 +272,8 @@ async def extract_text_from_epub(file_path):
                     soup = BeautifulSoup(item.get_content(), 'html.parser')
                     text.append(soup.get_text())
             full_text = "\n".join(text)
-            return {"title": "EPUB Book", "body": full_text, "full_text": full_text}
+            title = os.path.splitext(os.path.basename(file_path))[0].replace("_", " ").replace("-", " ").title()
+            return {"title": title, "body": full_text, "full_text": full_text}
         except Exception as e:
             print(f"Error reading EPUB: {e}")
             return {"title": "Error", "body": "", "full_text": ""}

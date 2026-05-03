@@ -2,7 +2,7 @@ import asyncio
 import requests
 
 from google import genai
-from src.config import ELEVENLABS_API_KEY, GEMINI_API_KEY, DEEPGRAM_API_KEY
+from src.config import ELEVENLABS_API_KEY, GEMINI_API_KEY, DEEPGRAM_API_KEY, POLLINATIONS_API_KEY
 from src.prompts import SSML_PROMPT
 
 # Configure Gemini
@@ -92,7 +92,7 @@ def get_deepgram_voice(voice_id: str) -> str:
     }
     return voice_map.get(voice_id, "aura-2-cordelia-en")
 
-async def generate_audio_deepgram(text, output_path, voice_id="21m00Tcm4TlvDq8ikWAM", title=None, author=None):
+async def generate_audio_deepgram(text, output_path, voice_id="pNInz6obpgDQGcFmaJgB", title=None, author=None):
     """
     Generates audio using Deepgram Aura-2 TTS API.
     Automatically selects appropriate voice based on voice_id mapping.
@@ -154,7 +154,7 @@ async def generate_audio_deepgram(text, output_path, voice_id="21m00Tcm4TlvDq8ik
         print(f"❌ Deepgram failed: {e}")
         raise e
 
-async def generate_audio(text, output_path="audiobook.mp3", voice_id="21m00Tcm4TlvDq8ikWAM", stability=0.5, similarity_boost=0.75, style=0.0, use_speaker_boost=True, provider="elevenlabs", speaking_rate=1.0, title=None, author=None):
+async def generate_audio(text, output_path="audiobook.mp3", voice_id="pNInz6obpgDQGcFmaJgB", stability=0.5, similarity_boost=0.75, style=0.0, use_speaker_boost=True, provider="elevenlabs", speaking_rate=1.0, title=None, author=None):
     """
     Generates audio using the specified provider with automatic fallback.
     Priority: Deepgram -> Edge TTS (inbuilt)
@@ -176,7 +176,23 @@ async def generate_audio(text, output_path="audiobook.mp3", voice_id="21m00Tcm4T
     # Edge TTS (inbuilt)
     elif provider == "inbuilt":
         return await generate_audio_edge(text, output_path, voice_id, rate=speaking_rate)
+        
+    # Voice Clone (Colab XTTS v2)
+    elif provider == "voice_clone":
+        from src.state import state
+        if not state.voice_sample_path or not state.colab_url:
+            print("⚠️ Voice sample or Colab URL missing. Falling back to Inbuilt (Edge TTS).")
+            return await generate_audio_edge(text, output_path, voice_id, rate=speaking_rate)
+        return await generate_audio_voice_clone(text, output_path, state.voice_sample_path, state.colab_url)
     
+    
+    # Pollinations
+    elif provider == "pollinations":
+        if not POLLINATIONS_API_KEY:
+            print("⚠️  Pollinations API key missing. Falling back to Inbuilt (Edge TTS).")
+            return await generate_audio_edge(text, output_path, voice_id, rate=speaking_rate)
+        return await generate_audio_pollinations(text, output_path, voice_id)
+
     # ElevenLabs with fallback
     elif provider == "elevenlabs":
         if not ELEVENLABS_API_KEY:
@@ -250,6 +266,109 @@ async def generate_audio_elevenlabs(text, output_path, voice_id, stability, simi
         print(f"Exception in ElevenLabs TTS: {e}")
         print("Falling back to Edge TTS...")
         return await generate_audio_edge(text, output_path, voice_id)
+
+async def generate_audio_pollinations(text, output_path, voice_id="nova", model="elevenlabs"):
+    """
+    Generates audio using Pollinations AI TTS API.
+    """
+    print(f"Generating audio for {len(text)} characters using Pollinations AI ({voice_id})...")
+    if not POLLINATIONS_API_KEY:
+        raise Exception("POLLINATIONS_API_KEY is missing!")
+    
+    url = "https://gen.pollinations.ai/v1/audio/speech"
+    
+    headers = {
+        "Authorization": f"Bearer {POLLINATIONS_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    # Use ElevenLabs mapped voice if requested
+    mapped_voice = voice_id
+    if voice_id == "pNInz6obpgDQGcFmaJgB":
+        mapped_voice = "onyx"
+    elif voice_id == "21m00Tcm4TlvDq8ikWAM":
+        mapped_voice = "nova"
+    
+    payload = {
+        "model": model,
+        "input": text,
+        "voice": mapped_voice
+    }
+    
+    try:
+        def make_request():
+            return requests.post(url, headers=headers, json=payload, timeout=60)
+            
+        response = await asyncio.to_thread(make_request)
+        
+        if response.status_code == 200:
+            def write_file():
+                with open(output_path, "wb") as f:
+                    f.write(response.content)
+                return output_path
+                
+            result = await asyncio.to_thread(write_file)
+            print(f"✅ Pollinations audio saved to {result}")
+            return result
+        else:
+            error_msg = f"Pollinations API Error: {response.status_code} - {response.text}"
+            print(error_msg)
+            raise Exception(error_msg)
+            
+    except Exception as e:
+        print(f"Exception in Pollinations TTS: {e}")
+        print("Falling back to Edge TTS...")
+        return await generate_audio_edge(text, output_path, voice_id)
+
+async def generate_audio_voice_clone(text, output_path, voice_sample_path, colab_url):
+    """
+    Generates audio using a custom XTTS v2 model hosted on Google Colab via ngrok.
+    """
+    import base64
+    import json
+    
+    print(f"Generating cloned audio for {len(text)} characters using Colab API...")
+    
+    # Read the voice sample as base64
+    try:
+        with open(voice_sample_path, "rb") as audio_file:
+            speaker_wav_base64 = base64.b64encode(audio_file.read()).decode('utf-8')
+    except Exception as e:
+        print(f"Error reading voice sample: {e}")
+        raise Exception("Failed to read voice sample.")
+
+    url = f"{colab_url.rstrip('/')}/clone"
+    
+    payload = {
+        "text": text,
+        "speaker_wav_base64": speaker_wav_base64,
+        "language": "en"
+    }
+    
+    try:
+        def make_request():
+            return requests.post(url, json=payload, timeout=120)  # 2 minute timeout since generation is slow
+            
+        response = await asyncio.to_thread(make_request)
+        
+        if response.status_code == 200:
+            def write_file():
+                with open(output_path, "wb") as f:
+                    f.write(response.content)
+                return output_path
+                
+            result = await asyncio.to_thread(write_file)
+            print(f"✅ Cloned audio saved to {result}")
+            return result
+        else:
+            error_msg = f"Colab Voice Clone Error: {response.status_code} - {response.text}"
+            print(error_msg)
+            raise Exception(error_msg)
+            
+    except Exception as e:
+        print(f"Exception in Voice Clone TTS: {e}")
+        print("Falling back to Edge TTS...")
+        return await generate_audio_edge(text, output_path)
 
 async def generate_audio_edge(text, output_path, voice_id=None, rate=1.0):
     """

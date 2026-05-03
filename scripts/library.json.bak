@@ -1,0 +1,47 @@
+[
+  {
+    "id": "6a8306a5-742b-4bd5-96be-413bfc18c3b8",
+    "title": "Extracted PDF",
+    "author": "Unknown",
+    "filename": "Gopika_Story.pdf",
+    "upload_date": 1767441734,
+    "file_size": 2300,
+    "thumbnail": "visuals/cover_Gopika_Story_1767441754.png"
+  },
+  {
+    "id": "78d9f5b8-ef4c-44cf-b5ee-68a9129a89fe",
+    "title": "Extracted PDF",
+    "author": "Unknown",
+    "filename": "Night_in_the_Field_by_Shareef.pdf",
+    "upload_date": 1767302243,
+    "file_size": 2979,
+    "thumbnail": "visuals/cover_Night_in_the_Field_by_Shareef_1767302275.png"
+  },
+  {
+    "id": "784b2b69-e580-438f-9513-110529f20ea9",
+    "title": "Extracted PDF",
+    "author": "Unknown",
+    "filename": "converted_text.pdf",
+    "upload_date": 1767301908,
+    "file_size": 15448,
+    "thumbnail": "visuals/cover_converted_text_1767301923.png"
+  },
+  {
+    "id": "885a2753-f0b2-4e64-aa4f-40717f4f62ef",
+    "title": "Extracted PDF",
+    "author": "Unknown",
+    "filename": "Dino_F35_Story.pdf",
+    "upload_date": 1767300562,
+    "file_size": 2240,
+    "thumbnail": "visuals/cover_Dino_F35_Story_1767301008.png"
+  },
+  {
+    "id": "9bd5035c-9ebc-4cf2-8dde-1e340cf50973",
+    "title": "Extracted PDF",
+    "author": "Unknown",
+    "filename": "Batman_vs_Joker_Short_Story.pdf",
+    "upload_date": 1767299271,
+    "file_size": 2451,
+    "thumbnail": "visuals/cover_Batman_vs_Joker_Short_Story_1767301021.png"
+  }
+]

@@ -17,12 +17,13 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 BYTEZ_API_KEY = os.getenv("BYTEZ_API_KEY")
 DEAPI_API_KEY = os.getenv("DEAPI_API_KEY")
+POLLINATIONS_API_KEY = os.getenv("POLLINATIONS_API_KEY")
 
 # Debug print (masked)
 if OPENROUTER_API_KEY:
-    print(f"✅ OPENROUTER_API_KEY loaded: {OPENROUTER_API_KEY[:5]}...{OPENROUTER_API_KEY[-4:]}")
+    print(f" OPENROUTER_API_KEY loaded: {OPENROUTER_API_KEY[:5]}...{OPENROUTER_API_KEY[-4:]}")
 else:
-    print("❌ OPENROUTER_API_KEY NOT FOUND in environment")
+    print(" OPENROUTER_API_KEY NOT FOUND in environment")
     # Try manual read as fallback
     try:
         if env_path.exists():
@@ -35,7 +36,7 @@ else:
                         if (key.startswith('"') and key.endswith('"')) or (key.startswith("'") and key.endswith("'")):
                             key = key[1:-1]
                         OPENROUTER_API_KEY = key
-                        print(f"✅ Manually extracted OPENROUTER_API_KEY: {OPENROUTER_API_KEY[:5]}...")
+                        print(f" Manually extracted OPENROUTER_API_KEY: {OPENROUTER_API_KEY[:5]}...")
                         break
     except Exception as e:
         print(f"Manual read failed: {e}")

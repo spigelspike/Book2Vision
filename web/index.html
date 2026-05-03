@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 
 <html lang="en">
 
@@ -22,8 +22,9 @@
         href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@400;700&display=swap"
         rel="stylesheet">
 
-    <link rel="stylesheet" href="style.css?v=26">
+    <link rel="stylesheet" href="style.css?v=28">
     <link rel="stylesheet" href="carousel.css?v=2">
+    <link rel="stylesheet" href="panels.css?v=9">
 
 </head>
 
@@ -68,6 +69,10 @@
             <a href="library.html">Library</a>
 
             <a href="about.html">About us</a>
+
+            <button class="btn-tour-help" id="btn-tour" onclick="startTour()" title="Take a tour" aria-label="Start guided tour">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </button>
 
         </div>
 
@@ -162,387 +167,225 @@
 
         <!-- Dashboard (Hidden initially) -->
 
-        <section id="dashboard" class="container hidden fade-in" aria-label="Book Dashboard">
-
-
-
-            <!-- Top Bar: Book Info & Settings -->
-
-            <div class="dashboard-header glass">
-
-                <div class="book-info">
-
-                    <h2 id="book-title">Book Title</h2>
-
-                    <p id="book-author">Author Name</p>
-
-                </div>
-
-
-
-                <div class="controls-group">
-
-                    <div class="control-item">
-
-                        <label for="audio-provider">Audio Provider</label>
-
-                        <select id="audio-provider" class="glass-input">
-
-                            <option value="deepgram">Deepgram (Fast)</option>
-
-                            <option value="elevenlabs">ElevenLabs (High Quality)</option>
-
-                            <option value="inbuilt">Inbuilt (Free)</option>
-
-                        </select>
-
-                    </div>
-
-
-
-                    <div class="control-item">
-
-                        <label for="style-select">Art Style</label>
-
-                        <select id="style-select" class="glass-input">
-
-                            <option value="storybook">Storybook</option>
-
-                            <option value="cinematic">Cinematic</option>
-
-                            <option value="anime">Anime</option>
-
-                            <option value="watercolor">Watercolor</option>
-
-                            <option value="cyberpunk">Cyberpunk</option>
-
-                            <option value="fantasy">Fantasy</option>
-
-                        </select>
-
-                    </div>
-
-
-
-                    <button class="btn-icon" onclick="toggleSettings()" title="Advanced Settings"
-                        aria-label="Advanced Settings">⛯</button>
-
-                </div>
-
-
-
-
-
-            </div>
-
-
-
-            <div class="dashboard-grid">
-
-                <!-- Left: Entities -->
-
-                <div class="panel-left glass">
-
-                    <div class="panel-header">
-
-                        <h3>Characters</h3>
-
-                        <span class="badge-count" id="entity-count">0</span>
-
-                    </div>
-
-                    <div id="entities-list" class="entities-grid" aria-label="List of characters">
-
-                        <!-- Entities injected here -->
-
-                        <div class="skeleton-card" aria-hidden="true"></div>
-
-                        <div class="skeleton-card" aria-hidden="true"></div>
-
-                        <div class="skeleton-card" aria-hidden="true"></div>
-
-                    </div>
-
-                </div>
-
-
-
-                <!-- Center: Audio Player & Q&A -->
-
-                <div class="panel-center">
-
-                    <!-- Audio Player -->
-
-                    <div class="audio-player-ui glass">
-
-                        <div class="bg-waveform" aria-hidden="true">
-
-                            <span></span>
-
-                            <span></span>
-
-                            <span></span>
-
+        <section id="dashboard" class="nb-dashboard hidden fade-in" aria-label="Book Dashboard">
+            <!-- Hidden selects for JS compatibility -->
+            <select id="audio-provider" class="hidden" aria-hidden="true" style="display:none">
+                <option value="deepgram">Deepgram (Fast)</option>
+                <option value="elevenlabs">ElevenLabs (High Quality)</option>
+                <option value="pollinations">Pollinations (Many Models)</option>
+                <option value="inbuilt">Inbuilt (Free)</option>
+            </select>
+            <select id="style-select" class="hidden" aria-hidden="true" style="display:none">
+                <option value="storybook">Storybook</option>
+                <option value="cinematic">Cinematic</option>
+                <option value="anime">Anime</option>
+                <option value="watercolor">Watercolor</option>
+                <option value="cyberpunk">Cyberpunk</option>
+                <option value="fantasy">Fantasy</option>
+            </select>
+
+
+
+
+                        <!-- THREE-PANEL LAYOUT -->
+            <div class="nb-layout" id="nb-layout">
+
+                <!-- LEFT PANEL: Characters -->
+                <div class="nb-panel nb-panel-left glass" id="nb-panel-left">
+                    <div class="nb-panel-header">
+                        <h3><span>&#9679;</span> <span class="nb-panel-label">Characters</span></h3>
+                        <div class="nb-header-actions">
+                            <span class="badge-count" id="entity-count">0</span>
                         </div>
-
-                        <div class="player-header">
-
-                            <h3>Audiobook Player</h3>
-
-                            <div class="header-controls" style="display: flex; gap: 0.5rem;">
-
-                                <button id="btn-audio" class="btn-sm">
-
-                                    <span class="icon" aria-hidden="true">☊</span> Generate Audiobook
-
-                                </button>
-
-                                <button id="btn-podcast" class="btn-sm btn-podcast">
-
-                                    <span class="icon" aria-hidden="true">🎙️</span> Generate Podcast
-
-                                </button>
-
-                            </div>
-
+                    </div>
+                    <div class="nb-panel-body">
+                        <div id="entities-list" class="entities-grid" aria-label="List of characters">
+                            <div class="skeleton-card" aria-hidden="true"></div>
+                            <div class="skeleton-card" aria-hidden="true"></div>
+                            <div class="skeleton-card" aria-hidden="true"></div>
                         </div>
+                    </div>
+                </div>
 
+                <!-- RESIZE HANDLE LEFT -->
+                <div class="nb-resize-handle" id="resize-left"></div>
 
+                <!-- CENTER PANEL: Chat (primary) + Pinned Audio at bottom -->
+                <div class="nb-panel nb-panel-center" id="nb-panel-center">
+                    <!-- Panel header -->
+                    <div class="nb-panel-header nb-center-header">
+                        <div class="nb-center-title">
+                            <h2 id="book-title" class="nb-book-title">Book Title</h2>
+                            <span id="book-author" class="nb-book-author">Author Name</span>
+                        </div>
+                        <div class="nb-header-actions">
+                            <button class="nb-icon-btn" onclick="toggleSettings()" title="Settings" aria-label="Settings">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                            </button>
+                        </div>
+                    </div>
 
-                        <!-- Podcast Player (Hidden initially) -->
+                    <!-- Scrollable chat thread -->
+                    <div class="nb-chat-thread" id="qa-chat-container" aria-live="polite">
+                        <div class="nb-chat-msg system">
+                            Ask any question about the plot, characters, or themes!
+                        </div>
+                    </div>
 
+                    <!-- Suggestion chips -->
+                    <div class="qa-suggestions" id="qa-suggestions"></div>
+
+                    <!-- Chat input bar -->
+                    <div class="nb-chat-input-bar">
+                        <input type="text" id="qa-input" placeholder="Start typing..."
+                            class="glass-input qa-input" autocomplete="off" aria-label="Chat input">
+                        <span class="nb-source-count">1 source</span>
+                        <button class="nb-send-btn" id="btn-send-qa" aria-label="Send message">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                        </button>
+                    </div>
+
+                    <!-- PINNED AUDIO PLAYER at very bottom of center column -->
+                    <div class="nb-audio-dock" id="nb-audio-dock" aria-hidden="true">
+                        <!-- Podcast Player (hidden initially) -->
                         <div id="podcast-player-ui" class="podcast-player hidden fade-in" aria-label="Podcast Player">
-
                             <div class="podcast-header">
-
-                                <span style="font-size: 1.2rem;" aria-hidden="true">🎤︎︎</span>
-
-                                <div style="flex:1; margin-left: 0.5rem;">
-
-                                    <div style="font-weight: 700; font-size: 0.9rem;">Booked & Busy</div>
-
-                                    <div style="font-size: 0.75rem; opacity: 0.8;">with Jax & Emma</div>
-
+                                <span style="font-size:1.1rem;" aria-hidden="true">&#127908;</span>
+                                <div style="flex:1;margin-left:0.5rem;">
+                                    <div style="font-weight:700;font-size:0.85rem;">Booked &amp; Busy</div>
+                                    <div style="font-size:0.72rem;opacity:0.7;">with Jax &amp; Emma</div>
                                 </div>
-
-                                <button class="btn-icon-sm" onclick="closePodcast()"
-                                    aria-label="Close Podcast">✕</button>
-
+                                <button class="btn-icon-sm" onclick="closePodcast()" aria-label="Close Podcast">&#10005;</button>
                             </div>
-
                             <div class="podcast-visualizer" aria-hidden="true">
-
-                                <div class="speaker-avatar" id="podcast-avatar">✍🏼</div>
-
+                                <div class="speaker-avatar" id="podcast-avatar">&#9997;&#127996;</div>
                                 <div class="podcast-wave">
-
                                     <span></span><span></span><span></span><span></span><span></span>
-
                                 </div>
-
                             </div>
+                            <div class="podcast-transcript" id="podcast-transcript" aria-live="polite">Generating script...</div>
+                        </div>
 
-                            <div class="podcast-transcript" id="podcast-transcript" aria-live="polite">
-
-                                Generating script...
-
+                        <!-- Waveform visualizer -->
+                        <div class="nb-dock-wave" aria-hidden="true">
+                            <div class="audio-visualizer">
+                                <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+                                <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+                                <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+                                <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+                                <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+                                <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+                                <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+                                <div class="bar"></div><div class="bar"></div><div class="bar"></div>
                             </div>
-
                         </div>
 
-
-
-                        <div class="audio-visualizer" aria-hidden="true">
-
-                            <!-- Enhanced Waveform Visualizer -->
-
-                            <div class="bar"></div>
-
-                            <div class="bar"></div>
-
-                            <div class="bar"></div>
-
-                            <div class="bar"></div>
-
-                            <div class="bar"></div>
-
-                            <div class="bar"></div>
-
-                            <div class="bar"></div>
-
-                            <div class="bar"></div>
-
-                            <div class="bar"></div>
-
-                            <div class="bar"></div>
-
-                            <div class="bar"></div>
-
-                            <div class="bar"></div>
-
-                            <div class="bar"></div>
-
-                            <div class="bar"></div>
-
-                            <div class="bar"></div>
-
-                            <div class="bar"></div>
-
-                            <div class="bar"></div>
-
-                            <div class="bar"></div>
-
-                            <div class="bar"></div>
-
-                            <div class="bar"></div>
-
-                            <div class="bar"></div>
-
-                            <div class="bar"></div>
-
-                            <div class="bar"></div>
-
-                            <div class="bar"></div>
-
+                        <!-- Progress + time -->
+                        <div class="nb-dock-progress">
+                            <span id="current-time" class="nb-time">0:00</span>
+                            <div class="progress-container" id="progress-container" role="slider"
+                                aria-label="Audio Progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
+                                tabindex="0">
+                                <div class="progress-bar" id="audio-progress"></div>
+                                <div class="progress-hover" id="progress-hover"></div>
+                            </div>
+                            <span id="total-time" class="nb-time">0:00</span>
                         </div>
 
-
-
-                        <div class="progress-container" id="progress-container" role="slider"
-                            aria-label="Audio Progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
-                            tabindex="0">
-
-                            <div class="progress-bar" id="audio-progress"></div>
-
-                            <div class="progress-hover" id="progress-hover"></div>
-
+                        <!-- Controls row -->
+                        <div class="nb-dock-controls">
+                            <div class="nb-dock-left">
+                                <button class="btn-sm nb-dock-gen-btn" onclick="generateAudio()">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg> Generate
+                                </button>
+                                <button class="btn-sm btn-podcast nb-dock-gen-btn" onclick="generatePodcast()">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg> Podcast
+                                </button>
+                            </div>
+                            <div class="nb-dock-center-controls">
+                                <button class="btn-control" onclick="skip(-15)" aria-label="Rewind 15 seconds">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/><text x="9" y="15" font-size="7" fill="currentColor">15</text></svg>
+                                </button>
+                                <button class="btn-play" id="btn-play-pause" aria-label="Play or Pause">&#9654;</button>
+                                <button class="btn-control" onclick="skip(15)" aria-label="Forward 15 seconds">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/><text x="9" y="15" font-size="7" fill="currentColor">15</text></svg>
+                                </button>
+                            </div>
+                            <div class="nb-dock-right">
+                                <!-- speed/volume placeholders for future -->
+                            </div>
                         </div>
-
-
-
-                        <div class="time-display">
-
-                            <span id="current-time">0:00</span> / <span id="total-time">0:00</span>
-
-                        </div>
-
-
-
-                        <div class="player-controls">
-
-                            <button class="btn-control" onclick="skip(-15)" aria-label="Rewind 15 seconds"> ↺
-
-                                15s</button>
-
-                            <button class="btn-play" id="btn-play-pause" aria-label="Play or Pause">▶</button>
-
-                            <button class="btn-control" onclick="skip(15)" aria-label="Forward 15 seconds">15s
-
-                                ↻ </button>
-
-                        </div>
-
-
-
-                        <!-- Hidden audio element for logic -->
 
                         <audio id="audio-player" hidden></audio>
-
                     </div>
-
-
-
-                    <!-- Q&A Section -->
-
                 </div>
 
+                <!-- RESIZE HANDLE RIGHT -->
+                <div class="nb-resize-handle" id="resize-right"></div>
 
-
-                <!-- Right: Generated Image -->
-
-                <div class="panel-image glass">
-
-                    <div class="player-header">
-
-                        <h3>Visuals</h3>
-
-                        <button id="btn-visuals" class="btn-sm">
-
-                            <span class="icon" aria-hidden="true">🎨</span> Generate Visuals
-
-                        </button>
-
+                <!-- RIGHT PANEL: Studio -->
+                <div class="nb-panel nb-panel-right glass" id="nb-panel-right">
+                    <div class="nb-panel-header">
+                        <h3><span>&#127916;</span> <span class="nb-panel-label">Studio</span></h3>
+                        <div class="nb-header-actions">
+                            <button class="nb-collapse-btn" id="btn-collapse-right" aria-label="Collapse panel" title="Collapse Studio">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                            </button>
+                        </div>
                     </div>
+                    <div class="nb-panel-body">
 
-                    <div class="carousel-container">
-                        <button class="carousel-btn prev" onclick="prevImage()" aria-label="Previous Image">❮</button>
-                        <div class="image-display" id="image-display" aria-label="Generated Visuals">
-
-                            <div class="placeholder-content">
-
-                                <div class="icon-large" aria-hidden="true">🖼️</div>
-
-                                <p>Generate visuals to see the story come to life.</p>
-
-                            </div>
-
+                        <!-- Generate section -->
+                        <p class="nb-section-label">GENERATE</p>
+                        <div class="nb-studio-grid">
+                            <button class="nb-studio-card" id="btn-audio">
+                                <span class="nb-studio-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></span>
+                                <span>Audiobook</span>
+                                <span class="nb-card-arrow">&#8250;</span>
+                            </button>
+                            <button class="nb-studio-card btn-podcast" id="btn-podcast">
+                                <span class="nb-studio-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></span>
+                                <span>Podcast</span>
+                                <span class="nb-card-arrow">&#8250;</span>
+                            </button>
+                            <button class="nb-studio-card" id="btn-visuals">
+                                <span class="nb-studio-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
+                                <span>Visuals</span>
+                                <span class="nb-card-arrow">&#8250;</span>
+                            </button>
+                            <button class="nb-studio-card" onclick="exportAll && exportAll()">
+                                <span class="nb-studio-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
+                                <span>Export All</span>
+                                <span class="nb-card-arrow">&#8250;</span>
+                            </button>
                         </div>
 
-                        <button class="carousel-btn next" onclick="nextImage()" aria-label="Next Image">❯</button>
-                        <div class="carousel-counter" id="carousel-counter">0/0</div>
-                    </div>
-                    <div class="carousel-indicators" id="carousel-indicators"></div>
+                        <!-- Visuals section -->
+                        <p class="nb-section-label" style="margin-top:1rem;">VISUALS</p>
+                        <div class="carousel-container nb-carousel">
+                            <button class="carousel-btn prev" onclick="prevImage()" aria-label="Previous Image">&#10094;</button>
+                            <div class="image-display" id="image-display" aria-label="Generated Visuals">
+                                <div class="placeholder-content">
+                                    <div class="icon-large" aria-hidden="true">&#128444;&#65039;</div>
+                                    <p>Generate visuals to see the story come to life.</p>
+                                </div>
+                            </div>
+                            <button class="carousel-btn next" onclick="nextImage()" aria-label="Next Image">&#10095;</button>
+                            <div class="carousel-counter" id="carousel-counter">0/0</div>
+                        </div>
+                        <div class="carousel-indicators" id="carousel-indicators"></div>
 
+                    </div>
                 </div>
 
-            </div>
+            </div><!-- end .nb-layout -->
 
         </section>
 
 
 
-        <!-- Chatbot Widget -->
+        <!-- Chat is now inline inside #nb-panel-center above -->
 
-        <div id="chatbot-widget" class="chatbot-window glass hidden" aria-label="Chatbot">
-
-            <div class="chatbot-header">
-
-                <h3>Ask Book</h3>
-
-                <button class="btn-icon" aria-label="Close Chatbot">✕</button>
-
-            </div>
-
-            <div class="qa-chat-container" id="qa-chat-container" aria-live="polite">
-
-                <div class="chat-message system">
-
-                    Ask any question about the plot, characters, or themes!
-
-                </div>
-
-            </div>
-
-            <div class="qa-suggestions" id="qa-suggestions"></div>
-
-            <div class="qa-input-wrapper">
-
-                <input type="text" id="qa-input" placeholder="Ask a question..." class="glass-input qa-input"
-                    autocomplete="off" aria-label="Chat input">
-
-                <button class="btn-send" id="btn-send-qa" aria-label="Send message">➤</button>
-
-            </div>
-
-        </div>
-
-
-
-        <button id="chatbot-fab" class="chatbot-fab btn-primary hidden" aria-label="Open Chatbot">
-
-            💬
-
-        </button>
 
         <!-- Immersive Mode Overlay -->
 
@@ -591,9 +434,41 @@
 
     </main>
 
+    <!-- Visual Style Picker Modal -->
+    <div class="style-picker-overlay" id="style-picker-overlay" onclick="closeStylePicker(event)">
+        <div class="style-picker-modal glass">
+            <div class="style-picker-header">
+                <h3>Choose Art Style</h3>
+                <button class="nb-icon-btn" onclick="closeStylePicker()" aria-label="Close">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+            <div class="style-picker-grid">
+                <button class="style-option" data-style="storybook" onclick="pickStyleAndGenerate('storybook')">
+                    <span class="style-option-label">Storybook</span>
+                </button>
+                <button class="style-option" data-style="cinematic" onclick="pickStyleAndGenerate('cinematic')">
+                    <span class="style-option-label">Cinematic</span>
+                </button>
+                <button class="style-option" data-style="anime" onclick="pickStyleAndGenerate('anime')">
+                    <span class="style-option-label">Anime</span>
+                </button>
+                <button class="style-option" data-style="watercolor" onclick="pickStyleAndGenerate('watercolor')">
+                    <span class="style-option-label">Watercolor</span>
+                </button>
+                <button class="style-option" data-style="cyberpunk" onclick="pickStyleAndGenerate('cyberpunk')">
+                    <span class="style-option-label">Cyberpunk</span>
+                </button>
+                <button class="style-option" data-style="fantasy" onclick="pickStyleAndGenerate('fantasy')">
+                    <span class="style-option-label">Fantasy</span>
+                </button>
+            </div>
+        </div>
+    </div>
 
 
-    <script src="script.js?v=26"></script>
+
+    <script src="script.js?v=29"></script>
 
 </body>
 
