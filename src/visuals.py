@@ -74,14 +74,14 @@ async def generate_entity_image(entity_name, entity_role, output_dir, seed=None)
             if result:
                 return result
     
-    # Fallback to Pollinations
+    # Fallback to Pollinations with a simpler, shorter prompt to avoid 404s
     print(f" Falling back to Pollinations for {entity_name}...")
-    encoded_prompt = urllib.parse.quote(prompt)
+    # Keep prompt short to avoid URL length issues
+    short_prompt = f"character portrait of {entity_name}, {entity_role}, digital art, detailed face, studio lighting, bokeh background"
+    encoded_prompt = urllib.parse.quote(short_prompt)
     image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?seed={seed}&width=1024&height=1024&model=flux&nologo=true"
     
-    headers = DEFAULT_HEADERS.copy()
-    
-    async with aiohttp.ClientSession(headers=headers) as session:
+    async with aiohttp.ClientSession() as session:
         return await _download_image_async(session, image_url, img_path, f"Entity: {entity_name}")
 
 async def _download_image_async(session, url, output_path, description):

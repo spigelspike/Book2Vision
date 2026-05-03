@@ -361,18 +361,31 @@ function renderEntities(entities) {
     const imagePromises = [];
 
     entities.forEach(ent => {
-        let name, role;
+        let name, role, description, outfit, signatureProp;
         if (Array.isArray(ent)) {
             name = ent[0];
             role = ent[1] || "Character";
+            description = ent[2] || "";
+            outfit = ent[3] || "";
+            signatureProp = ent[4] || "";
         } else {
             name = ent;
             role = "Character";
+            description = "";
+            outfit = "";
+            signatureProp = "";
         }
 
         const card = document.createElement('div');
         card.className = 'nb-source-item fade-in-element';
+        card.style.position = 'relative';
         const imgId = `img-${name.replace(/[^a-zA-Z0-9]/g, '')}`;
+
+        // Build tooltip content
+        let tooltipDetails = '';
+        if (description) tooltipDetails += `<div class="entity-tooltip-row"><span class="entity-tooltip-label">Appearance:</span> ${description}</div>`;
+        if (outfit) tooltipDetails += `<div class="entity-tooltip-row"><span class="entity-tooltip-label">Outfit:</span> ${outfit}</div>`;
+        if (signatureProp && signatureProp.toLowerCase() !== 'none') tooltipDetails += `<div class="entity-tooltip-row"><span class="entity-tooltip-label">Signature:</span> ${signatureProp}</div>`;
 
         card.innerHTML = `
             <div class="source-icon" id="${imgId}-wrap"><img src="https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random" class="entity-avatar" id="${imgId}" style="width:36px;height:36px;border-radius:var(--radius-sm);object-fit:cover;"></div>
@@ -381,6 +394,16 @@ function renderEntities(entities) {
                 <p>${role}</p>
             </div>
             <span class="source-check">✓</span>
+            <div class="entity-tooltip" id="tooltip-${imgId}">
+                <div class="entity-tooltip-header">
+                    <img src="https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random&size=128" class="entity-tooltip-img" id="tooltip-img-${imgId}">
+                    <div>
+                        <div class="entity-tooltip-name">${name}</div>
+                        <div class="entity-tooltip-role">${role}</div>
+                    </div>
+                </div>
+                ${tooltipDetails ? `<div class="entity-tooltip-body">${tooltipDetails}</div>` : ''}
+            </div>
         `;
         entitiesList.appendChild(card);
 
@@ -396,14 +419,17 @@ function renderEntities(entities) {
 
 async function fetchEntityImage(name, imgId) {
     try {
-        // Add regenerate param if needed, logic can be extended
         const res = await fetch(`${API_BASE}/entity_image/${encodeURIComponent(name)}`);
         const data = await res.json();
         if (data.image_url) {
             const img = document.getElementById(imgId);
             if (img) {
-                // The backend now adds a timestamp, but we can add one here too just in case
                 img.src = data.image_url;
+            }
+            // Also update the tooltip image
+            const tooltipImg = document.getElementById(`tooltip-img-${imgId}`);
+            if (tooltipImg) {
+                tooltipImg.src = data.image_url;
             }
         } else {
             console.warn(`Entity image for ${name} returned null URL.`);

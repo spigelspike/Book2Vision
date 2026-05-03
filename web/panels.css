@@ -199,7 +199,7 @@
   cursor: pointer;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   margin-bottom: 0.35rem;
 }
 
@@ -299,6 +299,91 @@
   height: 52px;
   border-radius: 10px;
   margin-bottom: 0.35rem;
+}
+
+/* ── Entity Hover Tooltip ── */
+.entity-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 280px;
+  background: rgba(18, 18, 24, 0.97);
+  border: 1px solid rgba(127, 90, 240, 0.25);
+  border-radius: 14px;
+  padding: 0.85rem;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(127, 90, 240, 0.15);
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-50%) translateY(6px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+  backdrop-filter: blur(20px);
+}
+
+.nb-source-item:hover .entity-tooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
+}
+
+/* Position tooltip to the right if it would clip the left edge */
+.nb-source-item:first-child .entity-tooltip {
+  left: 0;
+  transform: translateX(0) translateY(6px);
+}
+.nb-source-item:first-child:hover .entity-tooltip {
+  transform: translateX(0) translateY(0);
+}
+
+.entity-tooltip-header {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.entity-tooltip-img {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+  object-fit: cover;
+  border: 2px solid rgba(127, 90, 240, 0.3);
+  flex-shrink: 0;
+}
+
+.entity-tooltip-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-main, #fffffe);
+  line-height: 1.3;
+}
+
+.entity-tooltip-role {
+  font-size: 0.72rem;
+  color: #a78bfa;
+  text-transform: capitalize;
+  font-weight: 500;
+}
+
+.entity-tooltip-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.entity-tooltip-row {
+  font-size: 0.75rem;
+  color: var(--text-muted, #94a1b2);
+  line-height: 1.45;
+}
+
+.entity-tooltip-label {
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 600;
+  margin-right: 0.3rem;
 }
 
 /* ══════════════════════════════════════════════════════════

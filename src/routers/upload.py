@@ -156,8 +156,8 @@ async def upload_book(file: UploadFile = File(...), background_tasks: Background
                             
                             print(f"   Generating entity: {name}")
                             await generate_entity_image(name, role, entity_dir)
-                            # Small delay to prevent rate limiting
-                            await asyncio.sleep(1)
+                            # Longer delay between entities to respect deAPI rate limits (free tier: 1-10 RPM)
+                            await asyncio.sleep(3)
                         except Exception as e:
                             print(f"⚠️ Failed to auto-generate entity {name}: {e}")
 

@@ -1,7 +1,7 @@
 """Quick test script to verify deAPI v2 endpoints work with your API key."""
 import requests
 
-API_KEY = "8504|SEyKrvlrdLAOLHrD4lrGsKO4r8ht4qiVRqGWMb03f760c85f"
+API_KEY = "11659|ZEjO5YzY57lJVHKySSuY44Xpv52883Zc3Wd5V6ON4e359512"
 
 headers = {
     "Authorization": f"Bearer {API_KEY}",
