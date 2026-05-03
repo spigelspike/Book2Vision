@@ -127,29 +127,49 @@ async def generate_audio_deepgram(text, output_path, voice_id="pNInz6obpgDQGcFma
     
     print(f"📝 Text formatted for natural TTS ({len(text)} -> {len(formatted_text)} chars)")
     
-    payload = {
-        "text": formatted_text
-    }
-    
+    # Deepgram has a 2000 character limit per request. We must chunk.
+    def chunk_text_by_sentence(text, max_length=1900):
+        # Rough split by common sentence enders
+        sentences = text.replace('. ', '.|').replace('! ', '!|').replace('? ', '?|').split('|')
+        chunks = []
+        current_chunk = ""
+        for sentence in sentences:
+            if len(current_chunk) + len(sentence) < max_length:
+                current_chunk += sentence + " "
+            else:
+                if current_chunk:
+                    chunks.append(current_chunk.strip())
+                current_chunk = sentence + " "
+        if current_chunk.strip():
+            chunks.append(current_chunk.strip())
+        return chunks
+
     try:
-        def make_request():
-            return requests.post(url, headers=headers, json=payload)
+        def process_chunks():
+            chunks = chunk_text_by_sentence(formatted_text)
+            if len(chunks) > 1:
+                print(f"🔪 Text too long for single request. Split into {len(chunks)} chunks.")
             
-        response = await asyncio.to_thread(make_request)
-        
-        if response.status_code == 200:
-            def write_file():
-                with open(output_path, "wb") as f:
-                    f.write(response.content)
-                return output_path
+            all_audio = b""
+            for i, chunk in enumerate(chunks):
+                if not chunk.strip(): continue
+                payload = {"text": chunk}
+                print(f"  -> Sending chunk {i+1}/{len(chunks)} ({len(chunk)} chars)...")
+                response = requests.post(url, headers=headers, json=payload)
+                if response.status_code == 200:
+                    all_audio += response.content
+                else:
+                    error_msg = f"Deepgram API Error on chunk {i+1}: {response.status_code} - {response.text}"
+                    print(error_msg)
+                    raise Exception(error_msg)
             
-            result = await asyncio.to_thread(write_file)
-            print(f"✅ Deepgram audio saved: {result}")
-            return result
-        else:
-            error_msg = f"Deepgram API Error: {response.status_code} - {response.text}"
-            print(error_msg)
-            raise Exception(error_msg)
+            with open(output_path, "wb") as f:
+                f.write(all_audio)
+            return output_path
+            
+        result = await asyncio.to_thread(process_chunks)
+        print(f"✅ Deepgram audio saved: {result}")
+        return result
     except Exception as e:
         print(f"❌ Deepgram failed: {e}")
         raise e
