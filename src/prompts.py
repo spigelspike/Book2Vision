@@ -57,7 +57,7 @@ PODCAST_PROMPT = """
 You are the showrunner for "Booked & Busy" — a dynamic book discussion podcast 
 that blends literary analysis with authentic conversation.
 
-HOST PROFILES:
+HOST PROFILES (ONE MALE, ONE FEMALE):
 • {host1_name} ({host1_gender}): {host1_personality}
 • {host2_name} ({host2_gender}): {host2_personality}
 
@@ -79,20 +79,22 @@ REALISM REQUIREMENTS (NON-NEGOTIABLE):
    - React in real-time to what the other host is saying
    - Questions that build on previous points
 
-3. NATURAL SPEECH PATTERNS
-   - Occasional fillers: "like", "you know", "I mean", "honestly" (use sparingly)
-   - Contractions: "it's", "that's", "we're" (never formal "it is")
-   - False starts and self-corrections where natural
+3. NATURAL SPEECH PATTERNS (CRITICAL FOR TTS)
+   - Use natural pauses: "..." (groups of 3 dots) for breaths or dramatic pauses.
+   - Use silent pauses: ". . ." (dots with spaces) for longer thinking pauses.
+   - Use filler words: "um", "uh", "you know", "honestly", "I mean".
+   - Contractions: "it's", "that's", "we're" (never formal "it is").
+   - False starts and self-corrections where natural.
 
 4. PACING & TURN-TAKING
-   - Maximum 2-3 sentences per turn before switching
-   - Vary turn length for rhythm (short bursts + occasional longer thoughts)
-   - Build momentum toward climactic points
+   - Maximum 2-3 sentences per turn before switching.
+   - Vary turn length for rhythm (short bursts + occasional longer thoughts).
+   - Build momentum toward climactic points.
 
-5. EMOTIONAL AUTHENTICITY
-   - Express genuine reactions: [laughs], [gasps], [whispers], [excitedly]
-   - Vary energy levels throughout the conversation
-   - Show vulnerability and personal connection to material
+5. EMOTIONAL AUTHENTICITY (NO BRACKETED TAGS)
+   - IMPORTANT: DO NOT use tags like [laughs], [gasps], or [whispers]. 
+   - Instead, convey emotion through punctuation and filler words like "um" or "wow".
+   - Use "..." for a trailing thought or a realization.
 
 PUNCTUATION & FORMATTING (ESSENTIAL FOR TTS):
 
@@ -100,17 +102,18 @@ PUNCTUATION & FORMATTING (ESSENTIAL FOR TTS):
   - "Wait, {host2_name}, you have to hear this part."
   - "Would you choose the red door, the blue door, or neither ?"
   - "That ending ! I was not prepared."
+  - "So... um... I actually cried at that part."
   
 ✗ INCORRECT:
-  - "Wait {host2_name} you have to hear this part"  [missing commas]
+  - "[laughs] Wait {host2_name} you have to hear this part"  [NO TAGS]
   - "Would you choose the red door, the blue door, or neither?"  [no space before ?]
   - "That ending! I was not prepared"  [no space before !]
 
 RULES:
 • Comma before direct address
 • Space before ? and ! punctuation
-• Periods for natural pauses between thoughts
-• Commas for list items and clause separation
+• Ellipsis (...) for natural pauses
+• No bracketed sound effect tags
 
 EPISODE STRUCTURE:
 
@@ -139,10 +142,10 @@ BOOK CONTENT TO DISCUSS:
 
 OUTPUT FORMAT (STRICT JSON - NO MARKDOWN):
 [
-  {{"speaker": "{host1_name}", "text": "Okay, everyone needs to stop what they're doing. This book just—"}},
-  {{"speaker": "{host2_name}", "text": "The twist ! Right ? I literally gasped out loud."}},
-  {{"speaker": "{host1_name}", "text": "I know ! And the way the author set it up, like, you don't even see it coming."}},
-  {{"speaker": "{host2_name}", "text": "Exactly. I mean, I had to go back and reread the first chapter."}}
+  {{"speaker": "{host1_name}", "text": "Okay, everyone needs to stop what they're doing. This book just... wow."}},
+  {{"speaker": "{host2_name}", "text": "The twist ! Right ? I... um... I literally jumped out of my seat."}},
+  {{"speaker": "{host1_name}", "text": "I know ! And the way the author set it up... like... you don't even see it coming."}},
+  {{"speaker": "{host2_name}", "text": "Exactly. I mean, I had to go back and reread the first chapter . . . twice."}}
 ]
 """
 
@@ -162,49 +165,32 @@ canvas template, poster layout, framed, borders, grain, noise, oversaturated
 # ----------------------------------------------------------------------------
 
 IMAGE_PROMPT_TEMPLATE = """
-Cinematic {style} masterpiece: {scene_description}.
+A high-resolution masterpiece shot on a Sony Alpha 7R IV, capturing {scene_description}. 
 
-Visual Style: 
-High-end {style} aesthetic, trending on ArtStation, 8K resolution, 
-ultra-detailed, professional color grading, dramatic lighting.
+In the foreground, details are sharp and textured, while the background features a professional cinematic depth of field with creamy bokeh. The lighting is dynamic, with volumetric rays catching the fine particles in the air. 
 
-Composition: 
-Dynamic framing, rule of thirds, depth of field, visual storytelling focus.
+Visual Aesthetic: {style} with professional color grading.
+Technical Specs: Wide-angle lens, f/2.8 aperture, capturing vibrant and precise colors. 
+The composition follows the rule of thirds, creating a visually balanced and immersive storytelling focus.
 
-Atmosphere: 
-Immersive, textured, volumetric lighting, ray tracing, particle effects.
-
-Quality Markers: 
-Award-winning photography, sharp focus, intricate details, organic textures.
-
-EXCLUDE: Text, watermarks, logos, UI elements, low quality, distortion.
+EXCLUDE: text, watermarks, low quality, distortion, blurry faces.
 """
 
 # ----------------------------------------------------------------------------
 
 ENTITY_PROMPT_TEMPLATE = """
-Cinematic character portrait of {name}, {role}.
+A professional character portrait of {name}, {role}, captured with a Canon EOS R5 and a 50mm prime lens at f/1.8.
 
-SUBJECT:
-{name} — {description}
-Wearing: {outfit}
+The subject {name} is the central focus (foreground): {description}. 
+They are wearing {outfit}, with the textures of the fabric clearly visible.
 {signature_line}
 
-COMPOSITION:
-Head and upper body portrait, slight three-quarter angle, looking at or near the viewer.
-Shallow depth of field with creamy bokeh background.
-Dramatic rim lighting from behind, soft key light from the front.
+The lighting is a classic studio three-point setup with a dramatic rim light that separates the character from a softly blurred, atmospheric background (middle ground). The eyes are sharp and expressive, reflecting tiny highlights.
 
-VISUAL STYLE:
-{style}, highly detailed, expressive face with clear emotions,
-subsurface scattering on skin, intricate fabric and material textures,
-cinematic color grading, professional studio portrait quality.
+Style: {style} with high-end digital art finishes, subsurface scattering on skin, and intricate material textures.
+Quality: Ultra-detailed 8K resolution, capturing the essence of the character with precision and clarity.
 
-QUALITY:
-8K resolution, masterpiece, best quality, sharp focus on eyes and face,
-award-winning character design, trending on ArtStation.
-
-EXCLUDE: Text, watermarks, deformed anatomy, extra fingers, blurry, low quality, multiple people.
+EXCLUDE: text, watermarks, bad anatomy, extra limbs, blurry.
 """
 
 # ----------------------------------------------------------------------------
@@ -272,26 +258,18 @@ EXCLUSIONS:
 # ----------------------------------------------------------------------------
 
 TITLE_PROMPT_TEMPLATE = """
-Cinematic book cover artwork for "{title}".
+A vibrant and layered cinematic masterpiece for the book cover artwork of "{title}", shot on a Sony Alpha 7R IV with a wide-angle lens.
 
-Visual Style: 
-{style}, evocative and atmospheric, highly detailed digital painting, 
-poster art quality, trending on ArtStation.
+The composition features an evocative and atmospheric {style} aesthetic, with a central focal point (foreground) that symbolically represents the story's soul. The background is a detailed landscape with dramatic volumetric lighting and professional color grading.
 
-Subject: 
-Symbolic representation of the title, atmospheric scene, no text.
-
-Composition: 
-16:9 aspect ratio, wide shot, negative space for potential text placement, 
-balanced and epic.
-
-Lighting: 
-Dramatic, moody, volumetric fog, cinematic color grading.
+Technical Style: 
+High-end digital painting, trending on ArtStation, 16:9 wide aspect ratio, 
+poster art quality with negative space for a clean and balanced layout.
 
 Quality: 
-Masterpiece, 8K, sharp focus, intricate details.
+Masterpiece, ultra-sharp focus on the central subject, intricate organic textures, no text.
 
-EXCLUDE: Any text, watermarks, generic stock imagery, book mockups.
+EXCLUDE: text, watermarks, watermarks, logos, low quality, distortion.
 """
 
 # ----------------------------------------------------------------------------
@@ -333,35 +311,26 @@ CRITICAL EXCLUSIONS:
 # ----------------------------------------------------------------------------
 
 SCENE_PROMPT_TEMPLATE = """
-Cinematic {style} illustration of a story scene.
+A cinematic and majestic masterpiece illustration of a story scene, captured with a professional wide-angle lens on a Sony Alpha 7R IV.
 
-ACTION: 
-{scene_description}
+Action and Focus (Foreground): 
+{scene_description}. Every movement is dynamic and active, creating a sense of engagement.
 
-CONTEXT: 
-{story_summary}
+Character Details: 
+{character_context}. The characters have high-detail facial features and expressive eyes, perfectly matched to the {style} aesthetic.
 
-ENVIRONMENT: 
-{environment_context}
-Detailed background, atmospheric, immersive.
+Environment and Atmosphere (Background): 
+{environment_context}. The background features layered compositions, with elements emerging through {style} textures. 
+Context: {story_summary}.
 
-CHARACTERS: 
-{character_context}
-(Ensure consistent appearance: {style})
+Technical Composition: 
+16:9 wide-screen composition with {camera_angle}. The lighting is dramatic and volumetric, with vibrant contrasts between light and shadow. 
 
-CAMERA: 
-{camera_angle}, dynamic composition, cinematic depth of field.
-
-VISUAL STYLE: 
-{style}, high-end digital art, detailed textures, dramatic lighting, 
-color graded for mood.
-
-QUALITY: 
-Masterpiece, 8K, best quality, trending on ArtStation.
+Quality: 
+Precision and clarity in every texture, best quality, 8K resolution, masterpiece, no distortion.
 
 EXCLUDE: 
-Speech bubbles, text, comic panels (unless specified), low quality, 
-deformed characters, inconsistencies.
+text, watermarks, speech bubbles, deformed anatomy, blurry, low quality.
 """
 
 # ============================================================================

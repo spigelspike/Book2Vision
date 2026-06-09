@@ -27,16 +27,27 @@ class AppState:
     For production, implement per-session state or database persistence.
     """
     def __init__(self):
+        self.reset()
+
+    def reset(self):
+        """Reset the application state for a new book."""
         self.ingestion_result = None
         self.analysis_result = None
         self.full_text = ""
+        self.book_digest = ""
         self.images_list = []
         self.entity_images = {}
         self.book_id = None
+        self.chapters = []
+        self.current_chapter_id = None
         self.audiobook_path = None
         self.immersive_audio_paths = []
         self.voice_sample_path = None
         self.colab_url = None
+        self.podcast_status = "idle"
+        self.podcast_playlist = []
+        self.podcast_error = ""
+        self.latest_overview_url = None
 
 
 state = AppState()

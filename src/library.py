@@ -28,18 +28,45 @@ class LibraryManager:
         try:
             from sqlalchemy import text
             with Session(engine) as session:
-                # Check if podcast_json column exists in analysis table
-                # SQLite specific check
+                # 1. Check if podcast_json column exists in analysis table
                 result = session.exec(text("PRAGMA table_info(analysis)")).all()
                 columns = [row[1] for row in result]
                 
                 if "podcast_json" not in columns:
-                    print("🔄 Applying schema update: Adding podcast_json to analysis table...")
+                    print("INFO: Applying schema update: Adding podcast_json to analysis table...")
                     session.exec(text("ALTER TABLE analysis ADD COLUMN podcast_json VARCHAR"))
                     session.commit()
-                    print("✅ Schema update complete.")
+                    print("SUCCESS: Schema update complete.")
+
+                # 2. Check if chapter table exists and create it if not
+                # SQLModel.metadata.create_all handles table creation for new tables gracefully
+                from src.database import SQLModel
+                SQLModel.metadata.create_all(engine)
+                
+                # 3. Backfill chapters for existing books
+                from src.database import Book, Chapter
+                books = session.exec(select(Book)).all()
+                for book in books:
+                    if not book.full_text: continue
+                    # Check if chapters already exist
+                    existing_chapters = session.exec(select(Chapter).where(Chapter.book_id == book.id)).all()
+                    if not existing_chapters:
+                        print(f"INFO: Migrating book ID {book.id} to Chapter-Based Architecture...")
+                        from src.text_sampler import split_into_chapters
+                        chapters_data = split_into_chapters(book.full_text)
+                        for ch_data in chapters_data:
+                            new_chapter = Chapter(
+                                book_id=book.id,
+                                chapter_index=ch_data["index"],
+                                title=ch_data["title"],
+                                content=ch_data["content"]
+                            )
+                            session.add(new_chapter)
+                        session.commit()
+                        print(f"✅ Migrated book ID {book.id} ({len(chapters_data)} chapters created).")
+
         except Exception as e:
-            print(f"⚠️ Schema update check failed: {e}")
+            print(f"⚠️ Schema update/migration failed: {e}")
 
     def _migrate_legacy_json(self):
         """Migrate data from library.json to SQLite."""
@@ -114,6 +141,22 @@ class LibraryManager:
                 session.add(new_book)
                 session.commit()
                 session.refresh(new_book)
+                
+                # Automatically chunk into chapters on ingest
+                if full_text:
+                    from src.database import Chapter
+                    from src.text_sampler import split_into_chapters
+                    chapters_data = split_into_chapters(full_text)
+                    for ch_data in chapters_data:
+                        new_chapter = Chapter(
+                            book_id=new_book.id,
+                            chapter_index=ch_data["index"],
+                            title=ch_data["title"],
+                            content=ch_data["content"]
+                        )
+                        session.add(new_chapter)
+                    session.commit()
+                    
                 return self._book_to_dict(new_book)
         except Exception as e:
             print(f"❌ Error adding book to library: {e}")
@@ -166,6 +209,38 @@ class LibraryManager:
                 # Should not happen if analysis exists, but just in case
                 pass
 
+    def get_chapters(self, book_id: int) -> List[Dict]:
+        """Get all chapters for a book."""
+        from src.database import Chapter
+        with Session(engine) as session:
+            statement = select(Chapter).where(Chapter.book_id == book_id).order_by(Chapter.chapter_index)
+            chapters = session.exec(statement).all()
+            return [
+                {
+                    "id": c.id,
+                    "index": c.chapter_index,
+                    "title": c.title,
+                    "content_preview": (c.content[:200] + "...") if c.content else "",
+                    "has_audio": bool(c.audio_playlist_json)
+                }
+                for c in chapters
+            ]
+
+    def get_chapter(self, chapter_id: int) -> Optional[Dict]:
+        """Get a single chapter by ID."""
+        from src.database import Chapter
+        with Session(engine) as session:
+            c = session.get(Chapter, chapter_id)
+            if c:
+                return {
+                    "id": c.id,
+                    "index": c.chapter_index,
+                    "title": c.title,
+                    "content": c.content,
+                    "audio_playlist": json.loads(c.audio_playlist_json) if c.audio_playlist_json else []
+                }
+        return None
+
     def get_analysis(self, book_id: int) -> Optional[Dict]:
         """Get analysis results from DB."""
         with Session(engine) as session:
@@ -192,7 +267,7 @@ class LibraryManager:
                 books = session.exec(statement).all()
                 return [self._book_to_dict(b, session) for b in books]
         except Exception as e:
-            print(f"⚠️ Error fetching library: {e}")
+            print(f"[WARNING] Error fetching library: {e}")
             return []
 
     def delete_book(self, book_id: int) -> bool:
@@ -256,6 +331,29 @@ class LibraryManager:
             session.commit()
             return True
 
+    def update_book_digest(self, book_id: int, digest: str) -> bool:
+        """Save a pre-computed digest to the book."""
+        with Session(engine) as session:
+            book = session.get(Book, book_id)
+            if book:
+                book.book_digest = digest
+                session.add(book)
+                session.commit()
+                return True
+        return False
+
+    def save_chapter_audio(self, chapter_id: int, audio_path: str) -> bool:
+        """Save the path to a generated chapter audio file."""
+        from src.database import Chapter
+        with Session(engine) as session:
+            ch = session.get(Chapter, chapter_id)
+            if ch:
+                ch.audio_path = audio_path
+                session.add(ch)
+                session.commit()
+                return True
+        return False
+
     def _book_to_dict(self, book: Book, session: Session = None) -> Dict:
         """Convert Book model to dictionary for API."""
         # Get thumbnail
@@ -269,13 +367,14 @@ class LibraryManager:
                 thumbnail = img.path
         
         return {
-            "id": book.id, # Int ID now
+            "id": book.id,
             "title": book.title,
             "author": book.author,
             "filename": book.filename,
             "upload_date": book.upload_date.timestamp(),
             "file_size": self._get_file_size(book.filename),
-            "thumbnail": thumbnail
+            "thumbnail": thumbnail,
+            "book_digest": book.book_digest
         }
 
     def scan_and_backfill(self):
@@ -309,7 +408,7 @@ class LibraryManager:
             
             if count > 0:
                 session.commit()
-                print(f"✅ Backfilled {count} books into library")
+                print(f"[SUCCESS] Backfilled {count} books into library")
 
     def _get_file_size(self, filename: str) -> int:
         if not filename: return 0

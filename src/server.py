@@ -8,6 +8,7 @@ import os
 import uvicorn
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -20,7 +21,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import src.config
 
 from src.state import BASE_DIR, UPLOAD_DIR
-from src.routers import upload_router, generation_router, content_router, library_router
+from src.routers import upload_router, generation_router, content_router, library_router, music_router
 
 
 # ============================================================================
@@ -110,6 +111,16 @@ async def health_check():
 
 
 # ============================================================================
+# ROOT REDIRECT
+# ============================================================================
+
+@app.get("/")
+async def root():
+    """Redirect root to login page."""
+    return RedirectResponse(url="/login.html")
+
+
+# ============================================================================
 # ROUTERS
 # ============================================================================
 
@@ -117,6 +128,7 @@ app.include_router(upload_router)
 app.include_router(generation_router)
 app.include_router(content_router)
 app.include_router(library_router)
+app.include_router(music_router)
 
 
 # ============================================================================
@@ -134,4 +146,4 @@ app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="static")
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))
     print(f"Server starting... Open your browser at http://localhost:{port}")
-    uvicorn.run("src.server:app", host="0.0.0.0", port=port, reload=False)
+    uvicorn.run("src.server:app", host="0.0.0.0", port=port, reload=True)

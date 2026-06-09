@@ -8,6 +8,7 @@
 
     <!-- External CSS -->
     <link rel="stylesheet" href="style.css?v=26">
+    <script src="auth.js"></script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -260,6 +261,11 @@
 </head>
 
 <body>
+    <script>
+        requireAuth().then(session => {
+            if (session) injectNavUser();
+        });
+    </script>
     <!-- Background Orbs -->
     <div class="bg-orb orb-1"></div>
     <div class="bg-orb orb-2"></div>

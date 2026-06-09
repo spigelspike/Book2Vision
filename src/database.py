@@ -16,10 +16,26 @@ class Book(SQLModel, table=True):
     filename: str
     upload_date: datetime = Field(default_factory=datetime.utcnow)
     full_text: str = Field() # Defer loading large text
+    book_digest: Optional[str] = None # Cached AI summary for QA context
     
     # Relationships
     analysis: Optional["Analysis"] = Relationship(back_populates="book")
     images: List["Image"] = Relationship(back_populates="book")
+    chapters: List["Chapter"] = Relationship(back_populates="book")
+
+class Chapter(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    book_id: int = Field(foreign_key="book.id")
+    chapter_index: int
+    title: str
+    content: str
+    audio_playlist_json: Optional[str] = None
+    visuals_json: Optional[str] = None
+    analysis_json: Optional[str] = None
+    enhanced_script: Optional[str] = None # Cached Gemini prosody/SSML script
+    audio_path: Optional[str] = None # Path to generated audio file
+    
+    book: Optional[Book] = Relationship(back_populates="chapters")
 
 class Analysis(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

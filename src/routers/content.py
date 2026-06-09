@@ -4,6 +4,7 @@ import os
 import time
 import zipfile
 import traceback
+from typing import Optional, Dict
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
 
@@ -29,8 +30,22 @@ async def get_story():
         "body": state.ingestion_result.get("body", ""),
         "entities": state.analysis_result.get("entities", []) if state.analysis_result else [],
         "scenes": state.analysis_result.get("scenes", []) if state.analysis_result else [],
-        "images": state.images_list
+        "images": state.images_list,
+        "latest_overview_url": state.latest_overview_url
     }
+
+
+@router.get("/chapters")
+async def get_chapters_endpoint():
+    if not state.book_id:
+        return {"chapters": []}
+    
+    try:
+        chapters = library_manager.get_chapters(state.book_id)
+        return {"chapters": chapters}
+    except Exception as e:
+        print(f"Error fetching chapters: {e}")
+        return {"chapters": []}
 
 
 # ============================================================================
@@ -43,7 +58,9 @@ async def qa_endpoint(req: QARequest):
         raise HTTPException(status_code=400, detail="No book uploaded")
     
     try:
-        answer = ask_question(state.full_text, req.question)
+        # Use digest for better coverage of the full book
+        context = state.book_digest if state.book_digest else state.full_text
+        answer = await ask_question(context, req.question)
         return {"answer": answer}
     except Exception as e:
         print(f"QA Error: {type(e).__name__} - {e}")
@@ -57,7 +74,8 @@ async def suggested_questions_endpoint():
         return {"questions": []}
         
     try:
-        questions = suggest_questions(state.full_text)
+        context = state.book_digest if state.book_digest else state.full_text
+        questions = await suggest_questions(context)
         return {"questions": questions}
     except Exception as e:
         print(f"Suggested questions error: {e}")
@@ -68,20 +86,21 @@ async def suggested_questions_endpoint():
 # PODCAST
 # ============================================================================
 
-@router.post("/generate/podcast")
-async def generate_podcast_endpoint(background_tasks: BackgroundTasks):
-    if not state.full_text:
-        raise HTTPException(status_code=400, detail="No book uploaded")
-        
+async def generate_podcast_task(podcast_text: str, book_id: Optional[int], analysis_result: Optional[Dict]):
+    """Background task for podcast generation."""
+    state.podcast_status = "generating"
+    state.podcast_error = ""
     try:
         print("=" * 50)
-        print("🎙️  PODCAST GENERATION STARTED")
-        print(f"Book text length: {len(state.full_text)} characters")
+        print("--- PODCAST GENERATION STARTED (Background) ---")
+        print(f"Book text length: {len(podcast_text)} chars")
         print("=" * 50)
         
         # 1. Generate Script
-        print("📝 Step 1: Generating script...")
-        script = await generate_podcast_script(state.full_text)
+        state.podcast_status = "scripting"
+        print("--- Step 1: Generating script... ---")
+        from src.podcast import generate_podcast_script, generate_podcast_audio
+        script = await generate_podcast_script(podcast_text)
         
         # Check if script is error fallback
         is_error_fallback = (
@@ -91,27 +110,25 @@ async def generate_podcast_endpoint(background_tasks: BackgroundTasks):
         )
         
         if is_error_fallback:
-            error_msg = "Script generation failed. "
-            for seg in script:
-                text = seg.get("text", "")
-                if "Error:" in text:
-                    error_msg += text
-                    break
-            print(f"⚠️  {error_msg}")
+            print("WARNING: Using fallback script due to generation failure.")
         
-        print(f"✅ Script generated: {len(script)} segments")
+        print(f"SUCCESS: Script generated: {len(script)} segments")
         
         # 2. Generate Audio
-        print("🎵 Step 2: Generating audio...")
+        state.podcast_status = "audio"
+        print("--- Step 2: Generating audio... ---")
         podcast_dir = os.path.join(UPLOAD_DIR, "podcast")
         audio_files = await generate_podcast_audio(script, podcast_dir)
         
         if not audio_files:
-            raise HTTPException(status_code=500, detail="Audio generation failed - no files created")
+            state.podcast_status = "error"
+            state.podcast_error = "Audio generation failed"
+            print("ERROR: Audio generation failed - no files created")
+            return
         
-        print(f"✅ Audio generated: {len(audio_files)} files")
+        print(f"SUCCESS: Audio generated: {len(audio_files)} files")
         
-        # 3. Return playlist
+        # 3. Prepare playlist
         playlist = []
         for i, filename in enumerate(audio_files):
             if i < len(script):
@@ -122,42 +139,59 @@ async def generate_podcast_endpoint(background_tasks: BackgroundTasks):
                     "url": f"/api/assets/podcast/{filename}"
                 })
         
-        print("=" * 50)
-        print(f"✅ PODCAST GENERATION COMPLETE: {len(playlist)} segments")
-        print("=" * 50)
-        
         # Save to library
-        if state.book_id:
-            library_manager.save_podcast(state.book_id, playlist)
-            if state.analysis_result:
-                state.analysis_result["podcast"] = playlist
+        if book_id:
+            from src.state import library_manager
+            library_manager.save_podcast(book_id, playlist)
+        
+        # Update global state
+        state.podcast_playlist = playlist
+        state.podcast_status = "ready"
+        
+        if analysis_result is not None:
+            analysis_result["podcast"] = playlist
             
-        return {"playlist": playlist}
-    except HTTPException:
-        raise
-    except Exception as e:
         print("=" * 50)
-        print("❌ PODCAST GENERATION ERROR")
-        print(f"Error: {e}")
+        print("--- PODCAST GENERATION COMPLETE ---")
+        
+    except Exception as e:
+        state.podcast_status = "error"
+        state.podcast_error = str(e)
+        print("=" * 50)
+        print(f"ERROR: PODCAST GENERATION ERROR: {e}")
+        import traceback
         traceback.print_exc()
         print("=" * 50)
+
+@router.post("/generate/podcast")
+async def generate_podcast_endpoint(background_tasks: BackgroundTasks):
+    if not state.full_text:
+        raise HTTPException(status_code=400, detail="No book uploaded")
         
-        error_str = str(e).lower()
-        if "deepseek" in error_str or "api" in error_str:
-            raise HTTPException(
-                status_code=500, 
-                detail="Podcast script generation failed. Check DeepSeek API key and quota."
-            )
-        elif "audio" in error_str:
-            raise HTTPException(
-                status_code=500,
-                detail="Audio generation failed. Check TTS provider configuration."
-            )
-        else:
-            raise HTTPException(
-                status_code=500, 
-                detail=f"Podcast generation failed: {str(e)[:100]}"
-            )
+    podcast_text = state.book_digest if state.book_digest else state.full_text
+    
+    # Reset status
+    state.podcast_status = "generating"
+    state.podcast_playlist = []
+    state.podcast_error = ""
+    
+    # Start background task
+    background_tasks.add_task(
+        generate_podcast_task, 
+        podcast_text, 
+        state.book_id,
+        state.analysis_result
+    )
+    
+    return {"message": "Podcast generation started in background", "status": "generating"}
+
+@router.get("/podcast/status")
+async def get_podcast_status():
+    return {
+        "status": state.podcast_status,
+        "playlist": state.podcast_playlist,
+        "error": state.podcast_error
+    }
 
 
 # ============================================================================
@@ -298,7 +332,7 @@ async def download_all_content():
         # Deduplicate
         files_to_zip = list(set(files_to_zip))
         
-        print(f"📦 Zipping {len(files_to_zip)} files...")
+        print(f"INFO: Zipping {len(files_to_zip)} files...")
         
         with zipfile.ZipFile(zip_path, 'w') as zipf:
             for file_path in files_to_zip:
@@ -334,4 +368,24 @@ async def serve_video(filename: str):
         raise
     except Exception as e:
         print(f"Video serve error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/assets/overviews/{filename}")
+async def serve_overview(filename: str):
+    """Serve overview videos from the video_overview directory."""
+    try:
+        # Check source folder first (demo folder)
+        source_path = os.path.join(UPLOAD_DIR, "video_overview", filename)
+        if os.path.exists(source_path):
+            return FileResponse(source_path, media_type="video/mp4")
+        
+        # Check output folder (generated folder)
+        book_id = state.ingestion_result.get("book_id", "latest") if state.ingestion_result else "latest"
+        output_path = os.path.join(os.path.dirname(UPLOAD_DIR), "Book2Vision_Output", book_id, "overviews", filename)
+        if os.path.exists(output_path):
+            return FileResponse(output_path, media_type="video/mp4")
+            
+        raise HTTPException(status_code=404, detail="Overview video not found")
+    except Exception as e:
+        print(f"Overview serve error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

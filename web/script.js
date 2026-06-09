@@ -8,12 +8,12 @@ const API_BASE = "/api";
 // Attaches the Supabase JWT to API calls so the backend can identify the user
 async function getAuthHeaders(extra = {}) {
     try {
-        if (typeof supabaseClient !== 'undefined') {
-            const { data } = await supabaseClient.auth.getSession();
-            const token = data?.session?.access_token;
+        if (typeof getSession === 'function') {
+            const session = await getSession();
+            const token = session?.access_token;
             if (token) return { 'Authorization': `Bearer ${token}`, ...extra };
         }
-    } catch (e) { /* supabase not available on this page */ }
+    } catch (e) { /* session not available */ }
     return { ...extra };
 }
 
@@ -65,8 +65,8 @@ let totalImages = 0;
 
 // Default Settings
 const DEFAULT_SETTINGS = {
-    audioProvider: "pollinations",
-    voiceId: "pNInz6obpgDQGcFmaJgB", // Adam (deep voice)
+    audioProvider: 'deepgram',
+    voiceId: 'aura-2-cordelia-en',
     stability: 0.5,
     similarity: 0.75,
     styleStrength: 0.0,
@@ -143,11 +143,9 @@ function setupEventListeners() {
     // Audio
     if (btnAudio) btnAudio.addEventListener('click', () => {
         // If audio is already loaded/generated, just play it. Otherwise open picker.
-        if (state.audiobookUrl) {
-            audioPlayer.play();
-            isPlaying = true;
-            btnPlayPause.textContent = "⏸";
-            document.querySelector('.audio-player-ui').classList.add('playing');
+        if (audioPlayer.src && !audioPlayer.src.endsWith('#') && audioPlayer.src !== window.location.href) {
+            showAudioDock();
+            toggleAudio();
         } else {
             openAudioPicker('audiobook');
         }
@@ -162,6 +160,8 @@ function setupEventListeners() {
         audioPlayer.addEventListener('ended', () => {
             isPlaying = false;
             btnPlayPause.textContent = "▶";
+            const miniBtn = document.getElementById('btn-mini-play-audio');
+            if (miniBtn) miniBtn.querySelector('.play-icon').textContent = "▶";
             document.querySelector('.audio-player-ui').classList.remove('playing');
         });
     }
@@ -181,8 +181,17 @@ function setupEventListeners() {
     }
 
     // Visuals
-    if (btnVisuals) btnVisuals.addEventListener('click', openStylePicker);
+    if (btnVisuals) btnVisuals.addEventListener('click', () => {
+        toggleVisualMode('visuals');
+        openStylePicker();
+    });
+    const btnVideoOverview = document.getElementById('btn-video-overview');
+    if (btnVideoOverview) btnVideoOverview.addEventListener('click', () => {
+        toggleVisualMode('video');
+    });
+
     if (btnPodcast) btnPodcast.addEventListener('click', () => {
+        switchOutputTab('podcast');
         if (document.getElementById('podcast-player-ui').classList.contains('hidden') === false && document.getElementById('podcast-player-ui').style.display !== 'none') {
             // Already showing, do nothing or just play
         } else {
@@ -217,6 +226,57 @@ function setupEventListeners() {
                 voiceCloneSettings.style.display = 'none';
             }
         });
+    }
+
+    // Video Controls
+    setupVideoControls();
+}
+
+function setupVideoControls() {
+    const video = document.getElementById('studio-video-player');
+    const btnPlay = document.getElementById('btn-video-play-pause');
+    const progressBar = document.getElementById('video-progress-bar-inner');
+    const progressContainer = document.getElementById('video-progress-container');
+    const timeCurrent = document.getElementById('video-current');
+    const timeTotal = document.getElementById('video-total');
+    const btnFullscreen = document.getElementById('btn-video-fullscreen');
+
+    if (!video || !btnPlay) return;
+
+    btnPlay.onclick = () => {
+        if (video.paused) {
+            video.play();
+            btnPlay.textContent = "⏸";
+        } else {
+            video.pause();
+            btnPlay.textContent = "▶";
+        }
+    };
+
+    video.ontimeupdate = () => {
+        const percent = (video.currentTime / video.duration) * 100;
+        if (progressBar) progressBar.style.width = `${percent}%`;
+        if (timeCurrent) timeCurrent.textContent = formatTime(video.currentTime);
+    };
+
+    video.onloadedmetadata = () => {
+        if (timeTotal) timeTotal.textContent = formatTime(video.duration);
+    };
+
+    if (progressContainer) {
+        progressContainer.onclick = (e) => {
+            const rect = progressContainer.getBoundingClientRect();
+            const percent = (e.clientX - rect.left) / rect.width;
+            video.currentTime = percent * video.duration;
+        };
+    }
+
+    if (btnFullscreen) {
+        btnFullscreen.onclick = () => {
+            if (video.requestFullscreen) video.requestFullscreen();
+            else if (video.webkitRequestFullscreen) video.webkitRequestFullscreen();
+            else if (video.msRequestFullscreen) video.msRequestFullscreen();
+        };
     }
 }
 
@@ -292,6 +352,9 @@ async function handleUpload(file) {
 }
 
 function loadDashboard(data, filename) {
+    // Stop any existing podcast playback
+    if (typeof closePodcast === 'function') closePodcast();
+    
     heroSection.classList.add('hidden');
     dashboardSection.classList.remove('hidden');
 
@@ -308,6 +371,9 @@ function loadDashboard(data, filename) {
 
     // Fetch Suggested Questions
     fetchSuggestedQuestions();
+
+    // Fetch Chapters
+    fetchChapters();
 
     // Fetch full story text (background)
     // Fetch full story text (background)
@@ -339,6 +405,64 @@ async function fetchStoryContent() {
         }
     }
 }
+
+async function fetchChapters() {
+    const tabsContainer = document.getElementById('chapter-tabs');
+    if (!tabsContainer) return;
+
+    try {
+        const res = await fetch(`${API_BASE}/chapters`);
+        const data = await res.json();
+        renderChapters(data.chapters);
+    } catch (e) {
+        console.error("Failed to fetch chapters:", e);
+    }
+}
+
+function renderChapters(chapters) {
+    const tabsContainer = document.getElementById('chapter-tabs');
+    if (!tabsContainer) return;
+
+    tabsContainer.innerHTML = '';
+
+    if (!chapters || chapters.length === 0) {
+        tabsContainer.innerHTML = '<span class="nb-tab-empty">No chapters detected</span>';
+        return;
+    }
+
+    chapters.forEach(ch => {
+        const tab = document.createElement('div');
+        tab.className = 'nb-tab';
+        if (ch.has_audio) tab.classList.add('has-audio');
+
+        tab.innerHTML = `
+            <span class="nb-tab-index">${ch.index + 1}</span>
+            <span class="nb-tab-title">${ch.title}</span>
+            <button class="nb-tab-audio-btn" onclick="generateChapterAudio(event, '${ch.id}')" title="Generate Audio">
+                ${ch.has_audio ? '▶' : '🎙️'}
+            </button>
+        `;
+
+        tab.onclick = () => {
+            // Logic to scroll to chapter or load chapter context if needed
+            document.querySelectorAll('.nb-tab').forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            showToast(`Selected: ${ch.title}`, "info");
+        };
+
+        tabsContainer.appendChild(tab);
+    });
+}
+
+async function generateChapterAudio(event, chapterId) {
+    if (event) event.stopPropagation();
+
+    // Check if already has audio (mock logic for now, in real app we'd check ch.has_audio)
+    // For now, we always open the picker for the chapter
+    openAudioPicker('audiobook', chapterId);
+}
+
+window.generateChapterAudio = generateChapterAudio;
 
 function renderEntities(entities) {
     entitiesList.innerHTML = '';
@@ -497,9 +621,23 @@ async function fetchEntityImage(name, imgId) {
 // AUDIO GENERATION & PLAYBACK
 // ============================================
 
-async function generateAudio() {
-    if (!currentStoryText) {
-        showToast("No text available to generate audio.", "error");
+async function generateAudio(chapterId = null) {
+    // If text is missing, try to fetch it first
+    if (!currentStoryText && !chapterId) {
+        console.log("Text missing, attempting to fetch story content...");
+        try {
+            const res = await fetch(`${API_BASE}/story`);
+            if (res.ok) {
+                const data = await res.json();
+                currentStoryText = data.body;
+            }
+        } catch (e) {
+            console.error("Failed to recover story text:", e);
+        }
+    }
+
+    if (!currentStoryText && !chapterId) {
+        showToast("No text available to generate audio. Please wait a moment for the book to load.", "error");
         return;
     }
 
@@ -513,7 +651,8 @@ async function generateAudio() {
 
     try {
         const payload = {
-            text: currentStoryText.substring(0, 3000), // Send only what's needed (preview)
+            text: chapterId ? "" : currentStoryText.substring(0, 20000),
+            chapter_id: chapterId,
             voice_id: settings.voiceId,
             stability: settings.stability,
             similarity_boost: settings.similarity,
@@ -540,6 +679,7 @@ async function generateAudio() {
         // Auto play when ready
         audioPlayer.oncanplay = () => {
             showAudioDock();
+            updateMiniPlayerStatus('audio', 'Ready to play');
             toggleAudio();
             audioPlayer.oncanplay = null; // Remove listener
         };
@@ -573,6 +713,8 @@ function toggleAudio() {
             playPromise.then(() => {
                 isPlaying = true;
                 btnPlayPause.textContent = "⏸";
+                const miniBtn = document.getElementById('btn-mini-play-audio');
+                if (miniBtn) miniBtn.querySelector('.play-icon').textContent = "⏸";
                 if (ui) ui.classList.add('playing');
             }).catch(e => {
                 if (e.name === 'AbortError') {
@@ -592,6 +734,8 @@ function toggleAudio() {
         audioPlayer.pause();
         isPlaying = false;
         btnPlayPause.textContent = "▶";
+        const miniBtn = document.getElementById('btn-mini-play-audio');
+        if (miniBtn) miniBtn.querySelector('.play-icon').textContent = "▶";
         if (ui) ui.classList.remove('playing');
         isTogglingAudio = false;
     }
@@ -616,6 +760,11 @@ function updateProgress() {
     }
     const percent = (audioPlayer.currentTime / audioPlayer.duration) * 100;
     audioProgress.style.width = `${percent}%`;
+    
+    // Update mini player progress
+    const miniProg = document.getElementById('mini-audio-progress');
+    if (miniProg) miniProg.style.width = `${percent}%`;
+
     currentTimeEl.textContent = formatTime(audioPlayer.currentTime);
 }
 
@@ -719,20 +868,45 @@ function closeStylePicker(e) {
 
 // --- Audio Picker Modal ---
 let pendingAudioAction = null;
+let pendingChapterId = null;
 
-function openAudioPicker(type) {
+function openAudioPicker(type, chapterId = null) {
     pendingAudioAction = type;
+    pendingChapterId = chapterId;
     const modal = document.getElementById('audio-picker-overlay');
     const title = document.getElementById('audio-picker-title');
     if (title) title.textContent = type === 'podcast' ? 'Generate Podcast' : 'Generate Audiobook';
-    
+
     // Load current settings into modal
     const settings = getSettings();
     const providerSelect = document.getElementById('modal-audio-provider');
     const voiceInput = document.getElementById('modal-voice-id');
-    
-    if (providerSelect) providerSelect.value = settings.audioProvider || 'pollinations';
-    if (voiceInput) voiceInput.value = settings.voiceId || 'nova';
+
+    if (providerSelect) providerSelect.value = settings.audioProvider || 'deepgram';
+    if (voiceInput) voiceInput.value = settings.voiceId || 'aura-2-cordelia-en';
+
+    // Restrict providers for Podcast
+    if (type === 'podcast') {
+        Array.from(providerSelect.options).forEach(opt => {
+            if (opt.value !== 'deepgram') {
+                opt.style.display = 'none';
+            } else {
+                opt.style.display = 'block';
+                opt.selected = true;
+            }
+        });
+        voiceInput.value = 'aura-2-jax-en';
+        voiceInput.disabled = true;
+    } else {
+        Array.from(providerSelect.options).forEach(opt => {
+            opt.style.display = 'block';
+        });
+        voiceInput.disabled = false;
+        voiceInput.value = settings.voiceId || 'deep_male'; // Default to Neptune for premium feel
+    }
+
+    // Add Neptune and Asteria to the provider select if they aren't there? 
+    // Actually voiceInput is a text field, but we should suggest them.
 
     if (modal) {
         modal.style.display = 'flex';
@@ -752,24 +926,24 @@ function closeAudioPicker(e) {
 function confirmAudioPicker() {
     const providerSelect = document.getElementById('modal-audio-provider');
     const voiceInput = document.getElementById('modal-voice-id');
-    
+
     const newSettings = {
         ...getSettings(),
-        audioProvider: providerSelect ? providerSelect.value : 'pollinations',
-        voiceId: voiceInput ? voiceInput.value : 'nova'
+        audioProvider: providerSelect ? providerSelect.value : 'deepgram',
+        voiceId: voiceInput ? voiceInput.value : 'aura-2-cordelia-en'
     };
     saveSettings(newSettings);
-    
+
     // Also update main settings inputs if they exist on the page
     const mainProviderSelect = document.getElementById('audio-provider');
     if (mainProviderSelect) mainProviderSelect.value = newSettings.audioProvider;
-    
+
     closeAudioPicker();
-    
+
     if (pendingAudioAction === 'podcast') {
         generatePodcast();
     } else {
-        generateAudio();
+        generateAudio(pendingChapterId);
     }
 }
 
@@ -873,6 +1047,7 @@ function pollForImage(imgElement, url, spinner, attempts = 0) {
         imgElement.classList.add('loaded', 'fade-in-image');
         if (spinner) spinner.remove(); // Remove skeleton/spinner
     };
+    img.src = `${url}?t=${Date.now()}`; // Trigger the load
     img.onerror = () => {
         if (attempts < maxAttempts) {
             // Exponential backoff: 2s, 3s, 4.5s, 6.75s, capped at 10s
@@ -1002,11 +1177,19 @@ async function generatePodcast() {
 
     // Check if we already have a playlist
     if (podcastPlaylist.length > 0) {
-        podcastPlayerUi.classList.remove('hidden');
-        document.querySelector('.audio-visualizer').classList.add('hidden');
-        document.getElementById('progress-container').classList.add('hidden');
-        document.querySelector('.time-display').classList.add('hidden');
-        document.querySelector('.player-controls').classList.add('hidden');
+        if (podcastPlayerUi) podcastPlayerUi.classList.remove('hidden');
+
+        const viz = document.querySelector('.audio-visualizer');
+        if (viz) viz.classList.add('hidden');
+
+        const prog = document.getElementById('progress-container');
+        if (prog) prog.classList.add('hidden');
+
+        const times = document.querySelectorAll('.nb-time');
+        times.forEach(t => t.classList.add('hidden'));
+
+        const ctrl = document.querySelector('.nb-dock-center-controls');
+        if (ctrl) ctrl.classList.add('hidden');
 
         playPodcastSequence(0);
         btnPodcast.disabled = false;
@@ -1015,11 +1198,20 @@ async function generatePodcast() {
     }
 
     // Show UI, Hide Audiobook Controls
-    podcastPlayerUi.classList.remove('hidden');
-    document.querySelector('.audio-visualizer').classList.add('hidden');
-    document.getElementById('progress-container').classList.add('hidden');
-    document.querySelector('.time-display').classList.add('hidden');
-    document.querySelector('.player-controls').classList.add('hidden');
+    if (podcastPlayerUi) podcastPlayerUi.classList.remove('hidden');
+
+    // Use optional chaining or existence checks for safer UI updates
+    const viz = document.querySelector('.audio-visualizer');
+    if (viz) viz.classList.add('hidden');
+
+    const prog = document.getElementById('progress-container');
+    if (prog) prog.classList.add('hidden');
+
+    const times = document.querySelectorAll('.nb-time');
+    times.forEach(t => t.classList.add('hidden'));
+
+    const ctrl = document.querySelector('.nb-dock-center-controls');
+    if (ctrl) ctrl.classList.add('hidden');
 
     podcastTranscript.textContent = "Producers are writing the script...";
 
@@ -1028,25 +1220,61 @@ async function generatePodcast() {
             method: 'POST'
         });
 
-        if (!res.ok) throw new Error("Podcast generation failed");
+        if (!res.ok) throw new Error("Podcast generation failed to start");
 
         const data = await res.json();
-        podcastPlaylist = data.playlist;
 
-        if (podcastPlaylist.length > 0) {
+        // If it's already ready or just started, poll for status
+        if (data.status === "generating") {
+            pollPodcastStatus(originalText);
+        } else if (data.playlist && data.playlist.length > 0) {
+            podcastPlaylist = data.playlist;
+            updateMiniPlayerStatus('podcast', 'Ready to play');
             podcastTranscript.textContent = "Recording audio...";
             playPodcastSequence(0);
-        } else {
-            throw new Error("No script generated.");
+            btnPodcast.innerHTML = originalText;
+            btnPodcast.disabled = false;
         }
 
     } catch (e) {
         showToast(e.message, "error");
-        closePodcast(); // Revert UI on error
-    } finally {
+        closePodcast();
         btnPodcast.innerHTML = originalText;
         btnPodcast.disabled = false;
     }
+}
+
+async function pollPodcastStatus(originalText) {
+    const pollInterval = setInterval(async () => {
+        try {
+            const res = await fetch(`${API_BASE}/podcast/status`);
+            if (!res.ok) return;
+
+            const data = await res.json();
+
+            if (data.status === "scripting") {
+                podcastTranscript.textContent = "Producers are writing the script...";
+            } else if (data.status === "audio") {
+                podcastTranscript.textContent = "Recording audio segments...";
+            } else if (data.status === "ready") {
+                clearInterval(pollInterval);
+                podcastPlaylist = data.playlist;
+                updateMiniPlayerStatus('podcast', 'Ready to play');
+                podcastTranscript.textContent = "Podcast ready ! Starting playback...";
+                playPodcastSequence(0);
+                btnPodcast.innerHTML = originalText;
+                btnPodcast.disabled = false;
+            } else if (data.status === "error") {
+                clearInterval(pollInterval);
+                showToast(`Podcast Error: ${data.error}`, "error");
+                closePodcast();
+                btnPodcast.innerHTML = originalText;
+                btnPodcast.disabled = false;
+            }
+        } catch (e) {
+            console.error("Polling error:", e);
+        }
+    }, 2000); // Poll every 2 seconds
 }
 
 let currentPodcastAudio = null;
@@ -1073,9 +1301,22 @@ function playPodcastSequence(index) {
     }
     currentPodcastAudio = new Audio(segment.url);
     currentPodcastAudio.play();
+    const miniBtn = document.getElementById('btn-mini-play-podcast');
+    if (miniBtn) miniBtn.querySelector('.play-icon').textContent = "⏸";
 
     currentPodcastAudio.onended = () => {
+        if (index + 1 >= podcastPlaylist.length) {
+            if (miniBtn) miniBtn.querySelector('.play-icon').textContent = "▶";
+        }
         playPodcastSequence(index + 1);
+    };
+
+    // Update mini progress
+    currentPodcastAudio.ontimeupdate = () => {
+        if (!currentPodcastAudio.duration) return;
+        const percent = (currentPodcastAudio.currentTime / currentPodcastAudio.duration) * 100;
+        const miniProg = document.getElementById('mini-podcast-progress');
+        if (miniProg) miniProg.style.width = `${percent}%`;
     };
 
     currentPodcastAudio.onerror = () => {
@@ -1095,10 +1336,17 @@ function closePodcast() {
     podcastPlaylist = []; // Clear playlist
 
     // Show Audiobook Controls
-    document.querySelector('.audio-visualizer').classList.remove('hidden');
-    document.getElementById('progress-container').classList.remove('hidden');
-    document.querySelector('.time-display').classList.remove('hidden');
-    document.querySelector('.player-controls').classList.remove('hidden');
+    const viz = document.querySelector('.audio-visualizer');
+    if (viz) viz.classList.remove('hidden');
+
+    const prog = document.getElementById('progress-container');
+    if (prog) prog.classList.remove('hidden');
+
+    const times = document.querySelectorAll('.nb-time');
+    times.forEach(t => t.classList.remove('hidden'));
+
+    const ctrl = document.querySelector('.nb-dock-center-controls');
+    if (ctrl) ctrl.classList.remove('hidden');
 }
 window.closePodcast = closePodcast;
 
@@ -1121,7 +1369,7 @@ async function handleQASubmit() {
     try {
         // Add timeout to fetch
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 40000); // 40s timeout for frontend
+        const timeoutId = setTimeout(() => controller.abort(), 90000); // 90s timeout for frontend
 
         const res = await fetch(`${API_BASE}/qa`, {
             method: 'POST',
@@ -1296,7 +1544,7 @@ async function startImmersiveMode() {
         const settings = getSettings();
         const providerSelect = document.getElementById('audio-provider');
         const providerVal = providerSelect ? providerSelect.value : (settings.voiceId === "21m00Tcm4TlvDq8ikWAM" ? "elevenlabs" : "deepgram");
-        
+
         const res = await fetch(`${API_BASE}/generate/immersive_audio`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1634,11 +1882,17 @@ function renderLibrary() {
                 </div>
             `;
         } else {
-            // If no thumbnail, we still want the overlay for delete/open, but maybe different?
-            // Actually, let's keep the "Create Poster" button visible if no image.
-            // But we also need a way to open/delete if no image.
-            // The design shows "Extracted PDF" cards WITH images.
-            // My code above puts the button inside the no-image block.
+            thumbContent = `
+                <div class="book-thumbnail no-image">
+                    <div class="poster-placeholder-text">${book.title}</div>
+                    <div style="font-size: 3rem; opacity: 0.3;">📖</div>
+                    <div style="font-size: 0.8rem; opacity: 0.5; margin-top: 0.5rem;">Cover generating...</div>
+                    <div class="book-actions-overlay">
+                        <button class="btn-action-round" onclick="openBook('${book.id}')" title="Read Book">▶</button>
+                        <button class="btn-action-round" onclick="deleteBook('${book.id}')" style="background: rgba(239, 69, 101, 0.2); border-color: var(--danger);" title="Delete">×</button>
+                    </div>
+                </div>
+            `;
         }
 
         card.innerHTML = `
@@ -1715,7 +1969,10 @@ async function loadBookFromId(bookId) {
 
         showToast("Loading book from library...", "info");
 
-        const res = await fetch(`${API_BASE}/library/load/${bookId}`, { method: 'POST' });
+        const res = await fetch(`${API_BASE}/library/load/${bookId}`, { 
+            method: 'POST',
+            headers: await getAuthHeaders()
+        });
 
         if (!res.ok) throw new Error("Failed to load book");
 
@@ -1736,7 +1993,10 @@ async function deleteBook(bookId) {
     if (!confirm("Are you sure you want to delete this book? This cannot be undone.")) return;
 
     try {
-        const res = await fetch(`${API_BASE}/library/${bookId}`, { method: 'DELETE' });
+        const res = await fetch(`${API_BASE}/library/${bookId}`, { 
+            method: 'DELETE',
+            headers: await getAuthHeaders()
+        });
         if (!res.ok) throw new Error("Failed to delete book");
 
         showToast("Book deleted", "success");
@@ -2133,7 +2393,7 @@ window.hideSubtitles = hideSubtitles;
     const btnRight = document.getElementById('btn-collapse-right');
 
     if (btnRight) {
-        btnRight.addEventListener('click', function() {
+        btnRight.addEventListener('click', function () {
             layout.classList.toggle('right-collapsed');
             // Rotate the chevron SVG icon
             const svg = btnRight.querySelector('svg');
@@ -2149,7 +2409,7 @@ window.hideSubtitles = hideSubtitles;
         var handle = document.getElementById(handleId);
         if (!handle) return;
         var startX, startW;
-        handle.addEventListener('mousedown', function(e) {
+        handle.addEventListener('mousedown', function (e) {
             e.preventDefault();
             startX = e.clientX;
             startW = parseInt(getComputedStyle(layout).getPropertyValue(cssVar)) || (side === 'left' ? 260 : 340);
@@ -2170,7 +2430,7 @@ window.hideSubtitles = hideSubtitles;
         });
     }
 
-    makeDraggable('resize-left',  '--nb-left',  'left');
+    makeDraggable('resize-left', '--nb-left', 'left');
     makeDraggable('resize-right', '--nb-right', 'right');
 })();
 
@@ -2178,7 +2438,7 @@ window.hideSubtitles = hideSubtitles;
 // ONBOARDING TOUR
 // ============================================================================
 
-(function() {
+(function () {
     // Tour state
     let tourActive = false;
     let tourStep = 0;
@@ -2267,9 +2527,9 @@ window.hideSubtitles = hideSubtitles;
 
     function positionSpotlight(rect, pad) {
         pad = pad || 8;
-        spotlightEl.style.top    = (rect.top - pad) + 'px';
-        spotlightEl.style.left   = (rect.left - pad) + 'px';
-        spotlightEl.style.width  = (rect.width + pad * 2) + 'px';
+        spotlightEl.style.top = (rect.top - pad) + 'px';
+        spotlightEl.style.left = (rect.left - pad) + 'px';
+        spotlightEl.style.width = (rect.width + pad * 2) + 'px';
         spotlightEl.style.height = (rect.height + pad * 2) + 'px';
     }
 
@@ -2303,7 +2563,7 @@ window.hideSubtitles = hideSubtitles;
         left = Math.max(16, Math.min(left, window.innerWidth - tw - 16));
         top = Math.max(16, Math.min(top, window.innerHeight - th - 16));
 
-        tooltipEl.style.top  = top + 'px';
+        tooltipEl.style.top = top + 'px';
         tooltipEl.style.left = left + 'px';
     }
 
@@ -2315,17 +2575,17 @@ window.hideSubtitles = hideSubtitles;
 
         var isLast = index === total - 1;
 
-        tooltipEl.innerHTML = 
+        tooltipEl.innerHTML =
             '<div class="tour-tooltip-arrow"></div>' +
             '<div class="tour-step-num">Step ' + (index + 1) + ' of ' + total + '</div>' +
             '<div class="tour-title">' + step.title + '</div>' +
             '<div class="tour-desc">' + step.desc + '</div>' +
             '<div class="tour-nav">' +
-                '<div class="tour-dots">' + dotsHTML + '</div>' +
-                '<div style="display:flex;gap:0.5rem;align-items:center">' +
-                    '<button class="tour-btn-skip" onclick="endTour()">Skip</button>' +
-                    '<button class="tour-btn-next" onclick="nextTourStep()">' + (isLast ? 'Finish ✓' : 'Next →') + '</button>' +
-                '</div>' +
+            '<div class="tour-dots">' + dotsHTML + '</div>' +
+            '<div style="display:flex;gap:0.5rem;align-items:center">' +
+            '<button class="tour-btn-skip" onclick="endTour()">Skip</button>' +
+            '<button class="tour-btn-next" onclick="nextTourStep()">' + (isLast ? 'Finish ✓' : 'Next →') + '</button>' +
+            '</div>' +
             '</div>';
     }
 
@@ -2336,7 +2596,7 @@ window.hideSubtitles = hideSubtitles;
 
         var step = steps[index];
         var el = document.querySelector(step.target);
-        if (!el) { 
+        if (!el) {
             // Skip invisible steps
             if (index < steps.length - 1) showStep(index + 1);
             else endTour();
@@ -2347,7 +2607,7 @@ window.hideSubtitles = hideSubtitles;
         el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 
         // Small delay for scroll to settle
-        setTimeout(function() {
+        setTimeout(function () {
             var rect = el.getBoundingClientRect();
             positionSpotlight(rect);
             renderTooltip(step, index, steps.length);
@@ -2357,7 +2617,7 @@ window.hideSubtitles = hideSubtitles;
     }
 
     // Public API
-    window.startTour = function(force) {
+    window.startTour = function (force) {
         tourActive = true;
         tourStep = 0;
         tourSteps = getActiveSteps();
@@ -2366,7 +2626,7 @@ window.hideSubtitles = hideSubtitles;
         showStep(0);
     };
 
-    window.nextTourStep = function() {
+    window.nextTourStep = function () {
         // Remove highlight from current element
         var steps = getActiveSteps();
         if (tourStep < steps.length) {
@@ -2376,10 +2636,10 @@ window.hideSubtitles = hideSubtitles;
         showStep(tourStep + 1);
     };
 
-    window.endTour = function() {
+    window.endTour = function () {
         tourActive = false;
         // Cleanup highlights
-        document.querySelectorAll('.tour-highlighted').forEach(function(el) {
+        document.querySelectorAll('.tour-highlighted').forEach(function (el) {
             el.classList.remove('tour-highlighted');
         });
         if (spotlightEl) { spotlightEl.remove(); spotlightEl = null; }
@@ -2389,14 +2649,14 @@ window.hideSubtitles = hideSubtitles;
     };
 
     // Auto-start tour for first-time visitors (after page load)
-    window.addEventListener('load', function() {
+    window.addEventListener('load', function () {
         if (!localStorage.getItem('b2v_tour_seen')) {
-            setTimeout(function() { startTour(); }, 800);
+            setTimeout(function () { startTour(); }, 800);
         }
     });
 
     // Handle window resize during tour
-    window.addEventListener('resize', function() {
+    window.addEventListener('resize', function () {
         if (tourActive && spotlightEl && tooltipEl) {
             var steps = getActiveSteps();
             if (tourStep < steps.length) {
@@ -2411,9 +2671,347 @@ window.hideSubtitles = hideSubtitles;
     });
 
     // Keyboard: Escape to close, Right arrow / Enter to advance
-    document.addEventListener('keydown', function(e) {
+    document.addEventListener('keydown', function (e) {
         if (!tourActive) return;
         if (e.key === 'Escape') endTour();
         if (e.key === 'ArrowRight' || e.key === 'Enter') nextTourStep();
     });
 })();
+
+// ============================================
+// VIDEO OVERVIEW
+// ============================================
+
+async function generateVideoOverview() {
+    const overlay = document.getElementById('video-progress-overlay');
+    const progressBar = document.getElementById('video-progress-bar');
+    const progressStatus = document.getElementById('video-progress-status');
+
+    if (!overlay) return;
+
+    // Check if book is loaded
+    if (!bookTitle.textContent || bookTitle.textContent === "No Book Loaded") {
+        showToast("Please upload and analyze a book first.", "error");
+        return;
+    }
+
+    overlay.style.display = 'flex';
+    progressBar.style.width = '5%';
+    progressStatus.textContent = "Initializing LTX-2 engine...";
+
+    try {
+        const res = await fetch(`${API_BASE}/generate/video_overview`, {
+            method: 'POST',
+            headers: await getAuthHeaders({ 'Content-Type': 'application/json' }),
+            body: JSON.stringify({
+                model: "LTX-2-19B-Distilled-FP8",
+                duration_per_scene: 5
+            })
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || "Video overview generation failed to start");
+        }
+
+        // Start polling for the overview URL in the state
+        pollVideoOverviewStatus();
+
+    } catch (e) {
+        showToast(e.message, "error");
+        overlay.style.display = 'none';
+    }
+}
+
+async function pollVideoOverviewStatus() {
+    const progressBar = document.getElementById('video-progress-bar');
+    const progressStatus = document.getElementById('video-progress-status');
+    const overlay = document.getElementById('video-progress-overlay');
+    const indicator = document.getElementById('background-task-indicator');
+
+    let progress = 5;
+    const pollInterval = setInterval(async () => {
+        try {
+            const res = await fetch(`${API_BASE}/story`);
+            if (!res.ok) return;
+
+            const data = await res.json();
+
+            // Artificial progress increment
+            if (progress < 90) {
+                progress += Math.random() * 2;
+                if (progressBar) progressBar.style.width = `${progress}%`;
+                
+                let statusText = "Processing...";
+                if (progress < 30) statusText = "Animating scenes with LTX-2...";
+                else if (progress < 60) statusText = "Combining video segments...";
+                else statusText = "Overlaying audiobook audio...";
+
+                if (progressStatus) progressStatus.textContent = statusText;
+                
+                // Update background indicator text if visible
+                if (indicator && !indicator.classList.contains('hidden')) {
+                    const textEl = indicator.querySelector('.indicator-text');
+                    if (textEl) textEl.textContent = `Video: ${Math.round(progress)}%`;
+                }
+            }
+
+            // Check if ready
+            if (data.latest_overview_url) {
+                clearInterval(pollInterval);
+                if (progressBar) progressBar.style.width = '100%';
+                if (progressStatus) progressStatus.textContent = "Generation complete!";
+                
+                // Final background indicator update
+                if (indicator) {
+                    const textEl = indicator.querySelector('.indicator-text');
+                    if (textEl) textEl.textContent = `Video Ready!`;
+                    indicator.classList.add('ready');
+                }
+
+                // Notify User
+                showToast("Your Video Overview is ready!", "success");
+                
+                // If minimized, keep indicator but change text. If open, close overlay after delay.
+                if (overlay.style.display !== 'none') {
+                    setTimeout(() => {
+                        overlay.style.display = 'none';
+                        completeVideoLoad(data.latest_overview_url);
+                    }, 1500);
+                } else {
+                    // Minimized state: just update indicator
+                    console.log("Video ready in background");
+                }
+            }
+        } catch (e) {
+            console.error("Video polling error:", e);
+        }
+    }, 5000);
+}
+
+function completeVideoLoad(url) {
+    const studioVideo = document.getElementById('studio-video-player');
+    const videoPlaceholder = document.getElementById('video-placeholder');
+    const indicator = document.getElementById('background-task-indicator');
+
+    if (studioVideo) {
+        studioVideo.src = url;
+        studioVideo.load();
+        if (videoPlaceholder) videoPlaceholder.classList.add('hidden');
+        toggleVisualMode('video');
+    }
+    
+    // Hide indicator when complete and user has seen it (or clicked it)
+    if (indicator) indicator.classList.add('hidden');
+}
+
+function minimizeVideoProgress() {
+    const overlay = document.getElementById('video-progress-overlay');
+    const indicator = document.getElementById('background-task-indicator');
+    
+    if (overlay) overlay.style.display = 'none';
+    if (indicator) {
+        indicator.classList.remove('hidden');
+        showToast("Video generation continuing in background...", "info");
+    }
+}
+
+function reopenVideoProgress() {
+    const overlay = document.getElementById('video-progress-overlay');
+    const indicator = document.getElementById('background-task-indicator');
+    
+    // If it's already ready, just load it
+    if (indicator && indicator.classList.contains('ready')) {
+        // Find the URL from the story state or just trigger a refresh
+        fetch(`${API_BASE}/story`).then(res => res.json()).then(data => {
+            if (data.latest_overview_url) {
+                completeVideoLoad(data.latest_overview_url);
+            }
+        });
+        return;
+    }
+
+    if (overlay) overlay.style.display = 'flex';
+}
+
+window.minimizeVideoProgress = minimizeVideoProgress;
+window.reopenVideoProgress = reopenVideoProgress;
+
+// ============================================
+// AMBIENT MUSIC
+// ============================================
+
+let ambientAudio = null;
+let currentMusicId = 'none';
+
+async function openAmbientMusicPicker() {
+    const overlay = document.getElementById('music-picker-overlay');
+    const listContainer = document.getElementById('music-list');
+
+    if (overlay) overlay.style.display = 'flex';
+    if (!listContainer) return;
+
+    try {
+        const res = await fetch(`${API_BASE}/music/tracks`);
+        const data = await res.json();
+
+        if (data.tracks) {
+            listContainer.innerHTML = ''; // Clear current
+            data.tracks.forEach(track => {
+                const item = document.createElement('div');
+                item.className = `music-item glass-card ${currentMusicId === track.id ? 'selected' : ''}`;
+                item.onclick = (e) => toggleMusic(track.id, item);
+
+                item.innerHTML = `
+                    <div style="display: flex; flex-direction: column;">
+                        <span style="font-weight: 600;">${track.title || track.id}</span>
+                        <span style="font-size: 0.75rem; color: var(--text-muted);">Ambient Track</span>
+                    </div>
+                    <span class="music-status">${currentMusicId === track.id ? 'Selected' : ''}</span>
+                `;
+                listContainer.appendChild(item);
+            });
+        }
+    } catch (e) {
+        console.error("Failed to load music tracks:", e);
+    }
+}
+
+function closeMusicPicker(event) {
+    if (event && event.target !== event.currentTarget && !event.target.closest('.nb-icon-btn')) return;
+    const overlay = document.getElementById('music-picker-overlay');
+    if (overlay) overlay.style.display = 'none';
+}
+
+function toggleMusic(trackId, element) {
+    console.log(`🎵 Toggling music: ${trackId}`);
+
+    // Update UI
+    const items = document.querySelectorAll('.music-item');
+    items.forEach(item => {
+        item.classList.remove('selected');
+        const status = item.querySelector('.music-status');
+        if (status) status.textContent = "";
+    });
+
+    if (element) {
+        element.classList.add('selected');
+        const status = element.querySelector('.music-status');
+        if (status) status.textContent = "Selected";
+    }
+
+    // Handle playback
+    if (trackId === 'none') {
+        if (ambientAudio) {
+            ambientAudio.pause();
+            ambientAudio = null;
+        }
+        currentMusicId = 'none';
+        return;
+    }
+
+    if (currentMusicId === trackId && ambientAudio) {
+        // Already playing this track
+        return;
+    }
+
+    // Stop previous
+    if (ambientAudio) {
+        ambientAudio.pause();
+    }
+
+    // Fetch track URL and play
+    fetch(`${API_BASE}/music/play/${trackId}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.url) {
+                ambientAudio = new Audio(data.url);
+                ambientAudio.loop = true;
+                ambientAudio.volume = 0.3; // Low background volume
+                ambientAudio.play().catch(e => console.error("Music playback failed:", e));
+                currentMusicId = trackId;
+            }
+        })
+        .catch(err => {
+            console.error("Failed to load music:", err);
+            showToast("Failed to load music track.", "error");
+        });
+}
+
+// ============================================
+// STUDIO UI REFACTOR LOGIC
+// ============================================
+
+function switchOutputTab(tabName) {
+    console.log(`📑 Switching output tab: ${tabName}`);
+    
+    // Update tabs
+    const tabs = document.querySelectorAll('.nb-output-tab');
+    tabs.forEach(tab => {
+        if (tab.textContent.toLowerCase() === tabName) tab.classList.add('active');
+        else tab.classList.remove('active');
+    });
+
+    // Update panes
+    const panes = document.querySelectorAll('.output-tab-pane');
+    panes.forEach(pane => {
+        if (pane.id === `output-tab-${tabName}`) pane.classList.remove('hidden');
+        else pane.classList.add('hidden');
+    });
+}
+
+function toggleVisualMode(mode) {
+    console.log(`🎬 Toggling visual mode: ${mode}`);
+    
+    // Update toggle buttons
+    const btns = document.querySelectorAll('.toggle-btn');
+    btns.forEach(btn => {
+        if (btn.id === `btn-toggle-${mode === 'visuals' ? 'visuals' : 'video'}`) btn.classList.add('active');
+        else btn.classList.remove('active');
+    });
+
+    // Update wrappers
+    const carouselWrapper = document.getElementById('carousel-wrapper');
+    const videoWrapper = document.getElementById('video-wrapper');
+
+    if (mode === 'visuals') {
+        carouselWrapper.classList.remove('hidden');
+        videoWrapper.classList.add('hidden');
+    } else {
+        carouselWrapper.classList.add('hidden');
+        videoWrapper.classList.remove('hidden');
+    }
+}
+
+function updateMiniPlayerStatus(type, status) {
+    const el = document.getElementById(`output-${type}-status`);
+    if (el) el.textContent = status;
+}
+
+function togglePodcastPlayback() {
+    if (currentPodcastAudio) {
+        if (currentPodcastAudio.paused) {
+            currentPodcastAudio.play();
+            document.getElementById('btn-mini-play-podcast').querySelector('.play-icon').textContent = "⏸";
+        } else {
+            currentPodcastAudio.pause();
+            document.getElementById('btn-mini-play-podcast').querySelector('.play-icon').textContent = "▶";
+        }
+    } else {
+        generatePodcast();
+    }
+}
+
+function seekAudio(event) {
+    if (!audioPlayer.duration) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const percent = (event.clientX - rect.left) / rect.width;
+    audioPlayer.currentTime = percent * audioPlayer.duration;
+}
+
+// Global exposure
+window.switchOutputTab = switchOutputTab;
+window.toggleVisualMode = toggleVisualMode;
+window.togglePodcastPlayback = togglePodcastPlayback;
+window.seekAudio = seekAudio;
+window.updateMiniPlayerStatus = updateMiniPlayerStatus;

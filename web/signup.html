@@ -617,7 +617,6 @@
         }
     </style>
     <!-- Supabase JS SDK + Auth Module -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="auth.js"></script>
 </head>
 
@@ -745,10 +744,10 @@
 
             try {
                 const { user } = await signUpWithEmail(email, password, name);
-                // Supabase sends a confirmation email by default
-                showAuthError('✅ Account created! Check your email to confirm, then sign in.', 'success');
-                btn.textContent = 'Check your email ✉️';
-                setTimeout(() => window.location.href = 'login.html', 4000);
+                // Auto-logged in after signup in demo mode
+                showAuthError('✅ Account created! Redirecting to dashboard...', 'success');
+                btn.textContent = 'Entering...';
+                setTimeout(() => window.location.href = 'modes.html', 1500);
             } catch (err) {
                 showAuthError(err.message || 'Sign up failed. Please try again.');
                 btn.textContent = 'Sign Up';

@@ -45,3 +45,8 @@ library.json
 
 # Debug Output
 debug_output/
+
+*.db
+scratch/
+test_output.txt
+test.txt

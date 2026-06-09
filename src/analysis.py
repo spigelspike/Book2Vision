@@ -1,11 +1,10 @@
-
 from collections import Counter
 import json
 import os
 import re
 import asyncio
 from google import genai
-from src.config import GEMINI_API_KEY
+from src.config import GEMINI_API_KEYS, PODCAST_API_KEYS, OPENROUTER_API_KEY
 from src.gemini_utils import get_gemini_model
 
 # Compile regex pattern once for performance
@@ -16,22 +15,68 @@ async def semantic_analysis(text):
     Performs semantic analysis to extract entities and key concepts (Async).
     Priority: Gemini -> Basic Regex
     """
-    # 1. Try Gemini
-    api_key = os.getenv("GEMINI_API_KEY")
-    print(f"=== SEMANTIC ANALYSIS DEBUG ===")
-    print(f"API Key present: {bool(api_key)}")
-    if api_key:
-        result = await semantic_analysis_with_llm(text, api_key)
-        # If successful and has entities, return it
-        if result and result.get("entities"):
-            # Enforce minimum scenes
-            ensure_minimum_scenes(result)
-
-            print(f"✅ Gemini analysis succeeded. Found {len(result.get('entities', []))} entities and {len(result.get('scenes', []))} scenes.")
-            return result
-        print(f"❌ Gemini analysis failed or returned no entities. Result: {result}")
-        print("Falling back...")
-
+    # 1. Try Gemini with Key Rotation (Allocated for Analysis)
+    from src.config import get_allocated_keys
+    available_keys = get_allocated_keys(purpose="analysis")
+    
+    if available_keys:
+        from src.gemini_utils import is_key_on_cooldown, mark_key_failed
+    
+    for i, key in enumerate(available_keys):
+        # SKIP if key is on cooldown
+        if is_key_on_cooldown(key):
+            print(f"  -> Skipping Gemini Key {i+1} (on cooldown due to 429)")
+            continue
+            
+        try:
+            print(f"  -> Using Gemini Key {i+1}/{len(available_keys)} for Analysis...")
+            result = await semantic_analysis_with_llm(text, key)
+            
+            # If successful and has entities, return it
+            if result and result.get("entities"):
+                # Enforce minimum scenes
+                ensure_minimum_scenes(result)
+                print(f"SUCCESS: Gemini analysis succeeded using key {i+1}. Found {len(result.get('entities', []))} entities.")
+                return result
+                
+            print(f"WARNING: Key {i+1} returned empty analysis. Trying next...")
+        except Exception as e:
+            error_str = str(e)
+            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                # 🛡️ SMART RETRY: Check if it's a transient RPM limit (12s wait)
+                # [SMART RETRY]: Check if it's a transient RPM limit (12s wait)
+                import re
+                retry_match = re.search(r"retryDelay': '(\d+)s'", error_str)
+                if retry_match:
+                    delay = int(retry_match.group(1))
+                    if delay > 3:
+                        print(f"  -> [RPM LIMIT]: RPM Limit reached. Skipping long wait ({delay}s) and falling back immediately...")
+                    else:
+                        print(f"  -> [RPM LIMIT]: RPM Limit reached. Waiting {delay+1}s for smart retry...")
+                        await asyncio.sleep(delay + 1)
+                        try:
+                            print(f"  -> INFO: Retrying Gemini Key {i+1}...")
+                            result = await semantic_analysis_with_llm(text, key)
+                            if result and result.get("entities"):
+                                ensure_minimum_scenes(result)
+                                return result
+                        except: pass # If retry fails, move to circuit breaker
+                
+                mark_key_failed(key)
+            print(f"WARNING: Key {i+1} failed with error: {e}")
+            continue
+    
+    # 2. NEW: FALLBACK TO DEEPSEEK (OPENROUTER) IF GEMINI FAILS
+    from src.config import OPENROUTER_API_KEY
+    if OPENROUTER_API_KEY:
+        try:
+            print("--- Falling back to DeepSeek (OpenRouter) for Analysis ---")
+            result = await semantic_analysis_with_deepseek(text, OPENROUTER_API_KEY)
+            if result and result.get("entities"):
+                ensure_minimum_scenes(result)
+                return result
+        except Exception as e:
+            print(f"  -> DeepSeek analysis failed: {e}")
 
     # 3. Basic Regex Fallback
     print("Falling back to Basic Regex Analysis...")
@@ -108,33 +153,68 @@ from src.prompts import SEMANTIC_ANALYSIS_PROMPT
 async def semantic_analysis_with_llm(text, api_key):
     print("Using Gemini for Semantic Analysis...")
     
-    try:
-        client, model_name = get_gemini_model(capability="text", api_key=api_key)
-        
-        prompt = SEMANTIC_ANALYSIS_PROMPT.format(text=text[:100000])
-        
-        # Run blocking generation in thread
-        response = await asyncio.to_thread(
-            client.models.generate_content,
-            model=model_name,
-            contents=prompt
-        )
-        response_text = response.text.strip()
-        print(f"Gemini Analysis Response: {response_text[:200]}...")  # Log first 200 chars
-        
-        if response_text.startswith("```json"):
-            response_text = response_text[7:]
-        if response_text.endswith("```"):
-            response_text = response_text[:-3]
-            
-        return json.loads(response_text)
-        
-    except Exception as e:
-        import traceback
-        print(f"Gemini Analysis Failed: {e}")
-        traceback.print_exc()
+    client, model_name = get_gemini_model(capability="text", api_key=api_key)
+    
+    prompt = SEMANTIC_ANALYSIS_PROMPT.format(text=text[:100000])
+    
+    from src.gemini_utils import gemini_generate_content_pacing
+    response = await gemini_generate_content_pacing(
+        client, 
+        model_name, 
+        contents=prompt,
+        api_key=api_key
+    )
+    
+    if not response or not hasattr(response, 'text'):
         return {"entities": [], "keywords": []}
+        
+    response_text = response.text.strip()
+    print(f"Gemini Analysis Response: {response_text[:200]}...")  # Log first 200 chars
+    
+    if response_text.startswith("```json"):
+        response_text = response_text[7:]
+    if response_text.endswith("```"):
+        response_text = response_text[:-3]
+        
+    return json.loads(response_text)
 
+async def semantic_analysis_with_deepseek(text, api_key):
+    """Fallback analysis using DeepSeek via OpenRouter."""
+    from openai import AsyncOpenAI
+    from src.prompts import SEMANTIC_ANALYSIS_PROMPT
+    
+    client = AsyncOpenAI(
+        api_key=api_key,
+        base_url="https://openrouter.ai/api/v1"
+    )
+    
+    try:
+        response = await client.chat.completions.create(
+            model="nvidia/nemotron-3-super-120b-a12b:free",
+            messages=[
+                {"role": "system", "content": "You are a literary analyst. Return valid JSON."},
+                {"role": "user", "content": SEMANTIC_ANALYSIS_PROMPT.format(text=text[:15000])}
+            ],
+            response_format={"type": "json_object"}
+        )
+        if response and response.choices and len(response.choices) > 0:
+            content = response.choices[0].message.content
+            if content:
+                # Remove potential markdown
+                if content.startswith("```json"):
+                    content = content[7:]
+                if content.endswith("```"):
+                    content = content[:-3]
+                try:
+                    return json.loads(content)
+                except Exception as je:
+                    print(f"Error parsing DeepSeek JSON: {je}")
+            
+        print("DeepSeek returned empty or invalid response.")
+        return None
+    except Exception as e:
+        print(f"DeepSeek Analysis Exception: {e}")
+        return None
 
 def chapter_segmentation(text):
     """
@@ -175,7 +255,7 @@ def ensure_minimum_scenes(analysis_result, min_scenes=4):
     """
     scenes = analysis_result.get("scenes", [])
     if len(scenes) < min_scenes:
-        print(f"⚠️ Only {len(scenes)} scenes found. Padding to {min_scenes} with generic scenes.")
+        print(f"WARNING: Only {len(scenes)} scenes found. Padding to {min_scenes} with generic scenes.")
         defaults = [
             "The journey continues as the plot unfolds.",
             "A moment of quiet reflection or building tension.",

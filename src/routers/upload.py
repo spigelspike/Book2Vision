@@ -19,6 +19,7 @@ router = APIRouter(prefix="/api", tags=["upload"])
 
 @router.post("/upload")
 async def upload_book(file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
+    state.reset()
     try:
         # 1. Validate filename exists
         if not file.filename or file.filename == "":
@@ -84,9 +85,13 @@ async def upload_book(file: UploadFile = File(...), background_tasks: Background
         state.ingestion_result = ingestion_result
         state.full_text = ingestion_result.get("full_text", "")
         
-        # Analysis
+        # Compute smart digest covering the full book
+        from src.text_sampler import create_book_digest
+        state.book_digest = create_book_digest(state.full_text)
+        
+        # Analysis — use the digest (covers full book) instead of raw text
         try:
-            analysis = await semantic_analysis(state.full_text)
+            analysis = await semantic_analysis(state.book_digest)
             state.analysis_result = analysis
             
             # Pre-generation removed for performance. 
@@ -122,7 +127,7 @@ async def upload_book(file: UploadFile = File(...), background_tasks: Background
             should_generate = True
             
         if should_generate:
-            print(f"🎨 Scheduling cover generation for: {title}")
+            print(f"--- Scheduling cover generation for: {title}")
             
             async def generate_cover_background():
                 try:
@@ -137,7 +142,7 @@ async def upload_book(file: UploadFile = File(...), background_tasks: Background
                     if title == "Extracted PDF" or title == "Book":
                          gen_title = safe_filename.replace("_", " ").replace(".pdf", "").replace(".epub", "")
                     
-                    print(f"🎭 Generating top entities for: {gen_title}")
+                    print(f"--- Generating top entities for: {gen_title}")
                     # Generate top 3 entities first (Sequential: Entities -> Cover)
                     top_entities = characters[:3] if characters else []
                     entity_dir = os.path.join(UPLOAD_DIR, "entities")
@@ -166,12 +171,11 @@ async def upload_book(file: UploadFile = File(...), background_tasks: Background
                                 outfit=outfit,
                                 signature_prop=signature_prop
                             )
-                            # Longer delay between entities to respect deAPI rate limits (free tier: 1-10 RPM)
-                            await asyncio.sleep(3)
+                            await asyncio.sleep(1) # Add small breather to avoid Pollinations 429
                         except Exception as e:
-                            print(f"⚠️ Failed to auto-generate entity {name}: {e}")
+                            print(f"WARNING: Failed to auto-generate entity {name}: {e}")
 
-                    print(f"🎨 Starting cover generation for: {gen_title}")
+                    print(f"--- Starting cover generation for: {gen_title}")
                     cover_path = await generate_poster_with_deapi(
                         gen_title, author, visuals_dir, 
                         theme=theme, characters=characters
@@ -180,9 +184,9 @@ async def upload_book(file: UploadFile = File(...), background_tasks: Background
                     if cover_path and state.book_id:
                         filename = os.path.basename(cover_path)
                         library_manager.update_book_thumbnail(state.book_id, f"visuals/{filename}")
-                        print(f"✅ Auto-generated cover saved and linked to library: {cover_path}")
+                        print(f"SUCCESS: Auto-generated cover saved and linked to library: {cover_path}")
                 except Exception as e:
-                    print(f"⚠️ Auto cover generation failed: {e}")
+                    print(f"WARNING: Auto cover generation failed: {e}")
                     traceback.print_exc()
             
             # Add to background tasks
@@ -198,6 +202,6 @@ async def upload_book(file: UploadFile = File(...), background_tasks: Background
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Upload error: {type(e).__name__} - {e}")
+        print(f"ERROR: Upload error: {type(e).__name__} - {e}")
         traceback.print_exc()  # Full trace in server logs only
         raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")

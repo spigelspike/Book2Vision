@@ -2,10 +2,12 @@ import os
 import json
 import asyncio
 import time
+import requests
 from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
+from google import genai
 from openai import AsyncOpenAI
-from src.config import OPENROUTER_API_KEY
+from src.config import OPENROUTER_API_KEY, GEMINI_API_KEYS, PODCAST_API_KEYS
 from src.audio import generate_audio
 from src.prompts import PODCAST_PROMPT
 
@@ -96,8 +98,8 @@ class PodcastGenerator:
             hosts: Dictionary of host profiles
         """
         if not api_key:
-            print("⚠️  WARNING: OPENROUTER_API_KEY is not set")
-            print("💡 Podcast generation will use fallback scripts only")
+            print("WARNING: OPENROUTER_API_KEY is not set")
+            print("INFO: Podcast generation will use fallback scripts only")
         
         self.api_key = api_key
         self.hosts = hosts
@@ -155,14 +157,24 @@ class PodcastGenerator:
         """Clean up JSON response from various markdown formats."""
         response_text = response_text.strip()
         
-        # Remove markdown code blocks
-        if response_text.startswith("```json"):
-            response_text = response_text[7:]
-        elif response_text.startswith("```"):
-            response_text = response_text[3:]
+        # 1. Remove markdown code blocks if they exist
+        if "```json" in response_text:
+            response_text = response_text.split("```json")[1].split("```")[0]
+        elif "```" in response_text:
+            response_text = response_text.split("```")[1].split("```")[0]
             
-        if response_text.endswith("```"):
-            response_text = response_text[:-3]
+        # 2. Find the actual JSON boundaries (first [ or { and last ] or })
+        # This handles cases where the AI adds "Here is the JSON:" text
+        start_idx = response_text.find("[")
+        if start_idx == -1:
+            start_idx = response_text.find("{")
+            
+        end_idx = response_text.rfind("]")
+        if end_idx == -1:
+            end_idx = response_text.rfind("}")
+            
+        if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+            response_text = response_text[start_idx:end_idx+1]
             
         return response_text.strip()
     
@@ -196,151 +208,240 @@ class PodcastGenerator:
         
         return True, ""
     
+    async def generate_script_gemini(self, text: str, max_length: int = 15000) -> List[Dict]:
+        """Generate a podcast script using Gemini 2.0 Flash with key rotation."""
+        print("--- Generating podcast script with Gemini AI...")
+        
+        # Using allocated keys (Podcast Key first)
+        from src.config import get_allocated_keys
+        available_keys = get_allocated_keys(purpose="podcast")
+        if not available_keys:
+             raise ValueError("No Gemini API keys found")
+        
+        last_error = None
+        for i, key in enumerate(available_keys):
+            try:
+                print(f"  -> Using Gemini Key {i+1}/{len(available_keys)} for Scripting...")
+                from src.gemini_utils import get_gemini_model
+                client, model_name = get_gemini_model(capability="text", api_key=key)
+                input_text = text[:max_length]
+                prompt = self._format_prompt(input_text)
+                
+                from src.gemini_utils import gemini_generate_content_pacing
+                response = await gemini_generate_content_pacing(
+                    client, 
+                    model_name, 
+                    contents=[
+                        "You are an expert podcast script writer. Create an engaging, conversational script in valid JSON format. Return ONLY the JSON.",
+                        prompt
+                    ],
+                    api_key=key
+                )
+                
+                response_text = response.text
+                cleaned_text = self._clean_json_response(response_text)
+                script = json.loads(cleaned_text)
+                
+                is_valid, error_msg = self._validate_script(script)
+                if not is_valid:
+                    raise ValueError(f"Script validation failed: {error_msg}")
+                    
+                print(f"Gemini successfully generated {len(script)} segments using key {i+1}")
+                return script
+                
+            except Exception as e:
+                last_error = e
+                error_str = str(e)
+                if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str or "quota" in error_str.lower():
+                    print(f"WARNING: Gemini Key {i+1} exhausted. Switching to next...")
+                    continue
+                else:
+                    print(f"Gemini Key {i+1} failed with error: {e}")
+                    # If it's not a quota error, we might still want to try the next key if it's a generic failure
+                    if i < len(available_keys) - 1:
+                        print("  -> Attempting with next key anyway...")
+                        continue
+                    break
+        
+        print(f"All Gemini keys failed. Last error: {last_error}")
+        raise last_error
+
+    async def generate_script_pollinations(self, text: str) -> List[Dict]:
+        """Ultimate fallback: Use Pollinations with DeepSeek."""
+        print("--- Using Pollinations/DeepSeek as Ultimate Fallback...")
+        print("WARNING: OpenRouter failed. Falling back to Pollinations...")
+        try:
+            prompt = self._format_prompt(text[:5000])
+            # Use GET for more reliable free-tier response
+            import urllib.parse
+            # Force JSON format and concise response
+            encoded_prompt = urllib.parse.quote(f"Create a podcast script in valid JSON format: [{{'speaker': 'Jax', 'text': '...'}}, ...]. Return ONLY the JSON array. Content: {prompt}")
+            url = f"https://text.pollinations.ai/{encoded_prompt}?model=openai&json=true"
+            
+            def make_request():
+                return requests.get(url, timeout=60)
+            
+            response = await asyncio.to_thread(make_request)
+            response_text = response.text.strip()
+            
+            # Clean up potential markdown or garbage
+            cleaned_text = self._clean_json_response(response_text)
+            
+            # If still starts with something else, try to find the first [
+            if not (cleaned_text.startswith('[') or cleaned_text.startswith('{')):
+                start_idx = cleaned_text.find('[')
+                if start_idx != -1:
+                    end_idx = cleaned_text.rfind(']')
+                    if end_idx != -1:
+                        cleaned_text = cleaned_text[start_idx:end_idx+1]
+            
+            script = json.loads(cleaned_text)
+            
+            # If it's a dict, try to find the list inside or wrap it
+            if isinstance(script, dict):
+                # Common wrappers
+                for key in ['segments', 'script', 'episodes', 'content']:
+                    if key in script and isinstance(script[key], list):
+                        script = script[key]
+                        break
+                
+                # Check again if it's still a dict
+                if isinstance(script, dict):
+                    if 'speaker' in script and 'text' in script:
+                        script = [script]
+                    else:
+                        # Try to find any list in the dict
+                        found_list = False
+                        for val in script.values():
+                            if isinstance(val, list) and len(val) > 0 and isinstance(val[0], dict) and ('speaker' in val[0] or 'text' in val[0]):
+                                script = val
+                                found_list = True
+                                break
+                        if not found_list:
+                             # Just wrap whatever we have if it looks remotely like a segment
+                             if any(k in script for k in ['speaker', 'text', 'role', 'content']):
+                                 script = [script]
+            
+            # If still not a list, raise error
+            if not isinstance(script, list):
+                 raise ValueError("Script must be a list")
+                 
+            is_valid, error_msg = self._validate_script(script)
+            if not is_valid:
+                raise ValueError(f"Script validation failed: {error_msg}")
+                
+            print(f"Pollinations successfully generated {len(script)} segments")
+            return script
+        except Exception as e:
+            print(f"Pollinations script generation failed: {e}")
+            if 'response_text' in locals():
+                print(f"Partial response: {response_text[:200]}")
+            raise e
+
     async def generate_script(
         self, 
         text: str, 
         max_length: int = 12000,
-        model: str = "meta-llama/llama-3.3-70b-instruct:free",  # OpenRouter's main reasoning model
+        model: str = "nvidia/nemotron-3-super-120b-a12b:free",  # OpenRouter fallback model
         max_retries: int = 3
     ) -> List[Dict]:
         """
-        Generate a podcast script using OpenRouter API with retry logic.
-        
-        Args:
-            text: Book content to discuss
-            max_length: Maximum characters to send to the model
-            model: Model ID to use
-            max_retries: Maximum number of retry attempts
-            
-        Returns:
-            List of script segments with speaker and text
+        Generate a podcast script using multiple AI providers (Gemini -> OpenRouter -> Pollinations).
         """
-        print("🎙️  Generating podcast script with OpenRouter AI...")
         
-        # Check API key first
-        if not self.api_key:
-            print("❌ CRITICAL: OPENROUTER_API_KEY is missing or empty")
-            print("💡 Please set OPENROUTER_API_KEY in your .env file")
-            return self._create_error_fallback("Missing API Key", "Please configure OPENROUTER_API_KEY in .env file")
-        
-        last_error = None
-        response_text = None
-        
-        for attempt in range(max_retries):
-            try:
-                if attempt > 0:
-                    wait_time = (2 ** attempt) + 1  # 3s, 5s, 9s
-                    print(f"🔄 Retry attempt {attempt + 1}/{max_retries} in {wait_time}s...")
-                    await asyncio.sleep(wait_time)
-                
-                # Truncate text if needed
-                input_text = text[:max_length] if len(text) > max_length else text
-                if len(text) > max_length:
-                    print(f"⚠️  Input truncated from {len(text)} to {max_length} characters")
-                
-                # Format prompt
-                prompt = self._format_prompt(input_text)
-                
-                # Generate content using OpenAI chat completion format
-                print(f"📡 Calling OpenRouter API (attempt {attempt + 1}/{max_retries})...")
-                response = await self.client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": "You are an expert podcast script writer. You create engaging, conversational scripts in valid JSON format."
-                        },
-                        {
-                            "role": "user",
-                            "content": prompt
-                        }
-                    ],
-                    temperature=0.7,
-                    max_tokens=2000,
-                    timeout=30.0  # Add timeout
-                )
-                
-                # Extract response text from OpenAI format
-                response_text = response.choices[0].message.content
-                
-                if response_text is None:
-                    raise ValueError("API returned None response")
-                
-                print(f"✅ Received response: {len(response_text)} characters")
-                
-                # Clean and parse JSON
-                cleaned_text = self._clean_json_response(response_text)
-                script = json.loads(cleaned_text)
-                
-                # Validate script
-                is_valid, error_msg = self._validate_script(script)
-                if not is_valid:
-                    print(f"⚠️  Script validation failed: {error_msg}")
-                    if attempt < max_retries - 1:
-                        print("🔄 Retrying with different parameters...")
-                        continue
-                    else:
-                        print("❌ All retries exhausted - validation failed")
-                        return self._create_error_fallback("Validation Failed", error_msg)
-                
-                print(f"✅ Successfully parsed {len(script)} segments")
-                return script
-                
-            except json.JSONDecodeError as e:
-                last_error = f"JSON parsing error: {str(e)}"
-                print(f"❌ {last_error}")
-                if response_text:
-                    print(f"Response preview: {response_text[:300]}...")
-                    print(f"Response end: ...{response_text[-100:]}")
-                if attempt >= max_retries - 1:
-                    return self._create_error_fallback("Invalid Response Format", "The AI returned malformed data")
-                    
-            except asyncio.TimeoutError:
-                last_error = "Request timeout - API took too long to respond"
-                print(f"❌ {last_error}")
-                if attempt >= max_retries - 1:
-                    return self._create_error_fallback("Timeout", "API request timed out")
-                    
-            except Exception as e:
-                last_error = str(e)
-                error_lower = last_error.lower()
-                
-                # Categorize errors
-                if "401" in error_lower or "unauthorized" in error_lower or "authentication" in error_lower:
-                    print(f"❌ Authentication Error: {last_error}")
-                    return self._create_error_fallback("Invalid API Key", "OpenRouter API key is invalid or expired")
-                    
-                elif "429" in error_lower or "rate limit" in error_lower or "quota" in error_lower:
-                    print(f"❌ Rate Limit Error: {last_error}")
-                    if attempt < max_retries - 1:
-                        wait_time = (2 ** (attempt + 2))  # Longer wait for rate limits
-                        print(f"⏳ Rate limited - waiting {wait_time}s before retry...")
+        # --- 1. TRY GEMINI FIRST (Primary) ---
+        try:
+            print("--- Generating podcast script with Gemini AI (Primary)...")
+            script = await self.generate_script_gemini(text)
+            
+            # --- FINAL STEP: SYNCHRONIZE TEXT WITH AUDIO ---
+            from src.audio import format_text_for_deepgram
+            for segment in script:
+                segment["text"] = format_text_for_deepgram(segment["text"])
+            return script
+        except Exception as e:
+            print(f"WARNING: Gemini Script Generation Failed: {e}")
+            print("--- Falling back to OpenRouter...")
+
+        # --- 2. TRY OPENROUTER (Fallback) ---
+        if self.api_key:
+            print(f"--- Calling OpenRouter API ({model})...")
+            last_error = None
+            for attempt in range(max_retries):
+                try:
+                    if attempt > 0:
+                        wait_time = (2 ** attempt) + 1
+                        print(f"--- Retry attempt {attempt + 1}/{max_retries} in {wait_time}s...")
                         await asyncio.sleep(wait_time)
-                        continue
-                    return self._create_error_fallback("Rate Limited", "Too many requests - please try again later")
                     
-                elif "500" in error_lower or "503" in error_lower or "502" in error_lower:
-                    print(f"❌ Server Error: {last_error}")
-                    if attempt < max_retries - 1:
-                        continue
-                    return self._create_error_fallback("API Server Error", "OpenRouter service is temporarily unavailable")
+                    input_text = text[:max_length]
+                    prompt = self._format_prompt(input_text)
                     
-                else:
-                    print(f"❌ Unexpected Error: {last_error}")
-                    import traceback
-                    traceback.print_exc()
-                    if attempt >= max_retries - 1:
-                        return self._create_error_fallback("Unknown Error", f"Something went wrong: {last_error[:100]}")
+                    response = await self.client.chat.completions.create(
+                        model=model,
+                        messages=[
+                            {"role": "system", "content": "You are an expert podcast script writer. You create engaging, conversational scripts in valid JSON format."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.7,
+                        max_tokens=3000,
+                        timeout=30.0
+                    )
+                    
+                    response_text = response.choices[0].message.content
+                    print(f"SUCCESS: Received response from OpenRouter: {len(response_text)} characters")
+                    
+                    cleaned_text = self._clean_json_response(response_text)
+                    script = json.loads(cleaned_text)
+                    
+                    is_valid, error_msg = self._validate_script(script)
+                    if is_valid:
+                        print(f"SUCCESS: Successfully parsed {len(script)} segments")
+                        # Show a preview of the script
+                        print("--- SCRIPT PREVIEW ---")
+                        for i, seg in enumerate(script[:3]):
+                            # Safe print for Windows terminals
+                            safe_text = seg['text'][:70].encode('ascii', 'ignore').decode('ascii')
+                            print(f"  [{i}] {seg['speaker']}: {safe_text}...")
+                        if len(script) > 3:
+                            print(f"  ... and {len(script) - 3} more segments.")
+                        print("----------------------")
+                        
+                        # --- FINAL STEP: SYNCHRONIZE TEXT WITH AUDIO ---
+                        from src.audio import format_text_for_deepgram
+                        for segment in script:
+                            segment["text"] = format_text_for_deepgram(segment["text"])
+                        
+                        return script
+                    else:
+                        print(f"WARNING: OpenRouter script validation failed: {error_msg}")
+                    
+                except Exception as e:
+                    last_error = str(e)
+                    print(f"OpenRouter attempt {attempt+1} failed: {e}")
+
+        # --- 3. TRY POLLINATIONS (Ultimate Fallback) ---
+        try:
+            script = await self.generate_script_pollinations(text)
+        except Exception as e:
+            print(f"Pollinations script generation also failed: {e}")
+            script = self._create_error_fallback("Generation Failed", "All AI providers failed. Please check your API keys.")
+
+        # --- FINAL STEP: SYNCHRONIZE TEXT WITH AUDIO ---
+        # We apply the same formatting to the text field that Deepgram uses 
+        # to ensure the visual subtitles match the spoken audio perfectly.
+        from src.audio import format_text_for_deepgram
+        for segment in script:
+            segment["text"] = format_text_for_deepgram(segment["text"])
+            
+        return script
         
-        # If we get here, all retries failed
-        print(f"❌ All {max_retries} attempts failed. Last error: {last_error}")
-        return self._create_error_fallback("Generation Failed", "Unable to generate script after multiple attempts")
     
     async def generate_audio(
         self, 
         script: List[Dict], 
         output_dir: str,
-        provider: str = "deepgram",  # Deepgram primary with automatic fallback to edge-tts
+        provider: str = "deepgram",  # FORCED TO DEEPGRAM FOR PODCASTS
         progress_callback: Optional[callable] = None
     ) -> List[str]:
         """
@@ -355,7 +456,7 @@ class PodcastGenerator:
         Returns:
             List of generated audio filenames
         """
-        print("🎵 Generating podcast audio segments...")
+        print(f"--- Generating podcast: {len(script)} segments...")
         
         # Ensure output directory exists
         os.makedirs(output_dir, exist_ok=True)
@@ -370,7 +471,7 @@ class PodcastGenerator:
             # Get host configuration
             host = self.hosts.get(speaker)
             if not host:
-                print(f"⚠️  Unknown speaker '{speaker}', using default")
+                print(f"Unknown speaker '{speaker}', using default")
                 host = self.hosts["Jax"]
             
             # Generate filename
@@ -379,15 +480,20 @@ class PodcastGenerator:
             
             # Create audio generation task
             voice = host.voice
+            current_voice_id = voice.elevenlabs_id
+            if provider == "deepgram":
+                current_voice_id = f"aura-2-{speaker.lower()}-en"
+                
             task = generate_audio(
                 text=text,
                 output_path=output_path,
-                voice_id=voice.elevenlabs_id,
+                voice_id=current_voice_id,
                 stability=voice.stability,
                 similarity_boost=voice.similarity_boost,
                 style=voice.style,
                 provider=provider,
-                speaking_rate=voice.speaking_rate
+                speaking_rate=voice.speaking_rate,
+                is_podcast=True
             )
             tasks.append((task, i + 1, total_segments, speaker))
         
@@ -401,10 +507,13 @@ class PodcastGenerator:
                 if progress_callback:
                     progress_callback(segment_num, total, speaker)
                 else:
-                    print(f"✅ Generated segment {segment_num}/{total} ({speaker})")
+                    # Find the original segment to get the text
+                    seg_text = script[segment_num-1]["text"] if segment_num <= len(script) else ""
+                    safe_text = seg_text[:60].encode('ascii', 'ignore').decode('ascii')
+                    print(f"SUCCESS: Generated segment {segment_num}/{total} ({speaker}): \"{safe_text}...\"")
                     
             except Exception as e:
-                print(f"❌ Error generating audio for segment {segment_num}: {e}")
+                print(f"Error generating audio for segment {segment_num}: {e}")
                 results.append(None)
         
         # Filter out failed generations and return basenames
@@ -412,7 +521,7 @@ class PodcastGenerator:
             os.path.basename(p) for p in results if p is not None
         ]
         
-        print(f"✅ Generated {len(successful_files)}/{total_segments} audio segments")
+        print(f"SUCCESS: Generated {len(successful_files)}/{total_segments} audio segments")
         return successful_files
 
 
@@ -420,7 +529,7 @@ class PodcastGenerator:
 async def generate_podcast_script(text: str) -> List[Dict]:
     """Generate a podcast script (legacy interface)."""
     if not OPENROUTER_API_KEY:
-        print("❌ Cannot generate podcast: OPENROUTER_API_KEY not configured")
+        print("ERROR: Cannot generate podcast: OPENROUTER_API_KEY not configured")
         return _create_error_fallback(
             "Configuration Error",
             "OpenRouter API key is not set. Please add OPENROUTER_API_KEY to your .env file."
@@ -433,7 +542,7 @@ async def generate_podcast_script(text: str) -> List[Dict]:
 async def generate_podcast_audio(script: List[Dict], output_dir: str) -> List[str]:
     """Generate podcast audio (legacy interface)."""
     if not OPENROUTER_API_KEY:
-        print("⚠️  Warning: OPENROUTER_API_KEY not set, but proceeding with audio generation")
+        print("WARNING: OPENROUTER_API_KEY not set, but proceeding with audio generation")
     
     generator = PodcastGenerator(OPENROUTER_API_KEY)
     return await generator.generate_audio(script, output_dir)

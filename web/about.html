@@ -12,6 +12,7 @@
         href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@400;700&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="style.css?v=18">
+    <script src="auth.js"></script>
     <style>
         .about-hero {
             text-align: center;
@@ -147,7 +148,11 @@
 </head>
 
 <body>
-
+    <script>
+        requireAuth().then(session => {
+            if (session) injectNavUser();
+        });
+    </script>
     <!-- Background Elements -->
     <div class="bg-orb orb-1" aria-hidden="true"></div>
     <div class="bg-orb orb-2" aria-hidden="true"></div>
@@ -162,7 +167,7 @@
             <span></span>
         </div>
         <div class="nav-links">
-            <a href="index.html">Home</a>
+            <a href="modes.html">Home</a>
             <a href="library.html">Library</a>
             <a href="about.html" class="active" aria-current="page">About us</a>
         </div>

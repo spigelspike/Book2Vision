@@ -11,10 +11,15 @@
         href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Playfair+Display:wght@400;700&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <script src="auth.js"></script>
 </head>
 
 <body>
-
+    <script>
+        requireAuth().then(session => {
+            if (session) injectNavUser();
+        });
+    </script>
     <!-- Background Elements -->
     <div class="bg-orb orb-1"></div>
     <div class="bg-orb orb-2"></div>
@@ -39,9 +44,8 @@
             <div class="form-group">
                 <label for="audio-provider">Audio Provider</label>
                 <select id="audio-provider" class="glass-input">
-                    <option value="deepgram">Deepgram (Fast)</option>
+                    <option value="deepgram">Deepgram (Primary)</option>
                     <option value="elevenlabs">ElevenLabs (High Quality)</option>
-                    <option value="pollinations">Pollinations (Many Models)</option>
                     <option value="inbuilt">Inbuilt (Free)</option>
                 </select>
             </div>

@@ -2,9 +2,9 @@ import json
 import os
 import random
 # spaCy imported lazily in load_spacy() to avoid startup overhead if not needed
-from src.config import GEMINI_API_KEY
+from src.config import GEMINI_API_KEYS, PODCAST_API_KEYS
 from google import genai
-from src.gemini_utils import get_gemini_model
+from src.gemini_utils import get_gemini_model, gemini_generate_content_pacing, mark_key_failed, is_key_on_cooldown
 
 nlp = None
 
@@ -89,7 +89,7 @@ def generate_quiz_with_deepseek(text, output_path):
         """
         
         data = {
-            "model": "deepseek/deepseek-chat", # Or specific deepseek model supported by OpenRouter
+            "model": "nvidia/nemotron-3-super-120b-a12b:free",
             "messages": [
                 {"role": "user", "content": prompt}
             ]
@@ -128,42 +128,60 @@ def generate_quiz_with_deepseek(text, output_path):
         print(f"Error generating quiz with DeepSeek: {e}. Falling back to Gemini.")
         return generate_quiz_with_llm(text, output_path)
 
-def generate_quiz_with_llm(text, output_path):
-    print("Using Gemini for Quiz Generation...")
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
+async def generate_quiz_with_llm(text, output_path):
+    print("Using Gemini for Quiz Generation with Key Rotation...")
+    
+    from src.config import get_allocated_keys
+    available_keys = get_allocated_keys(purpose="knowledge")
+    
+    if not available_keys:
         return generate_quiz_with_spacy(text, output_path)
         
-    try:
-        client, model_name = get_gemini_model(capability="text", api_key=api_key)
-        
-        prompt = f"""
-        Generate 5 multiple choice questions based on the following text.
-        Return the result as a JSON array of objects with keys: question, options (list of 4 strings), answer (string).
-        
-        Text: {text[:3000]}
-        """
-        
-        response = client.models.generate_content(model=model_name, contents=prompt)
-        # Clean up response text
-        response_text = response.text.strip()
-        if response_text.startswith("```json"):
-            response_text = response_text[7:]
-        if response_text.endswith("```"):
-            response_text = response_text[:-3]
+    last_error = None
+    for i, key in enumerate(available_keys):
+        try:
+            print(f"  -> Using Gemini Key {i+1}/{len(available_keys)} for Quiz...")
+            client, model_name = get_gemini_model(capability="text", api_key=key)
             
-        quiz_data = json.loads(response_text)
-        
-        # Handle if it returns a dict with a key like "questions"
-        if isinstance(quiz_data, dict) and "questions" in quiz_data:
-            quiz_data = quiz_data["questions"]
+            prompt = f"""
+            Generate 5 multiple choice questions based on the following text.
+            Return the result as a JSON array of objects with keys: question, options (list of 4 strings), answer (string).
             
-        with open(output_path, 'w') as f:
-            json.dump(quiz_data, f, indent=4)
-        return output_path
-    except Exception as e:
-        print(f"Error generating quiz with Gemini: {e}. Falling back to Spacy.")
-        return generate_quiz_with_spacy(text, output_path)
+            Text: {text[:3000]}
+            """
+            
+            from src.gemini_utils import gemini_generate_content_pacing
+            response = await gemini_generate_content_pacing(
+                client, 
+                model_name, 
+                contents=prompt,
+                api_key=key
+            )
+            response_text = response.text.strip()
+            if response_text.startswith("```json"):
+                response_text = response_text[7:]
+            if response_text.endswith("```"):
+                response_text = response_text[:-3]
+                
+            quiz_data = json.loads(response_text)
+            
+            if isinstance(quiz_data, dict) and "questions" in quiz_data:
+                quiz_data = quiz_data["questions"]
+                
+            with open(output_path, 'w') as f:
+                json.dump(quiz_data, f, indent=4)
+            return output_path
+        except Exception as e:
+            last_error = e
+            error_str = str(e)
+            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str or "503" in error_str:
+                print(f"WARNING: Key {i+1} failed ({error_str}). Trying next...")
+                continue
+            else:
+                break
+                
+    print(f"Error generating quiz with Gemini pool: {last_error}. Falling back to Spacy.")
+    return generate_quiz_with_spacy(text, output_path)
 
 def generate_quiz_with_spacy(text, output_path):
     print("Using Spacy for Fill-in-the-blank Quiz...")
@@ -196,7 +214,7 @@ def generate_quiz_with_spacy(text, output_path):
         json.dump(quiz, f, indent=4)
     return output_path
 
-def ask_question(context, question):
+async def ask_question(context, question):
     """
     Answers a question based on the book context. Tries DeepSeek first, then Gemini.
     """
@@ -225,7 +243,7 @@ def ask_question(context, question):
             """
             
             data = {
-                "model": "deepseek/deepseek-chat",
+                "model": "nvidia/nemotron-3-super-120b-a12b:free",
                 "messages": [
                     {"role": "user", "content": prompt}
                 ]
@@ -242,33 +260,47 @@ def ask_question(context, question):
             print(f"DeepSeek Error: {e}. Falling back to Gemini.")
 
     # Fallback to Gemini
-    return ask_question_with_gemini(context, question)
+    return await ask_question_with_gemini(context, question)
 
-def ask_question_with_gemini(context, question):
-    print(f"Asking Gemini: {question}")
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
+async def ask_question_with_gemini(context, question):
+    print(f"Asking Gemini with Key Rotation: {question}")
+    
+    from src.config import get_allocated_keys
+    available_keys = get_allocated_keys(purpose="knowledge")
+    
+    if not available_keys:
         return "No API keys available for Q&A."
         
-    try:
-        client, model_name = get_gemini_model(capability="text", api_key=api_key)
-        
-        prompt = f"""
-        You are an AI assistant helping a user understand a book.
-        Answer the question based ONLY on the provided context.
-        Keep the answer concise (max 3 sentences).
-        
-        Context: {context[:10000]}...
-        
-        Question: {question}
-        """
-        
-        response = client.models.generate_content(model=model_name, contents=prompt)
-        return response.text.strip()
-    except Exception as e:
-        return f"Error with Gemini: {str(e)}"
+    last_error = None
+    for i, key in enumerate(available_keys):
+        try:
+            print(f"  -> Using Gemini Key {i+1}/{len(available_keys)} for Q&A...")
+            client, model_name = get_gemini_model(capability="text", api_key=key)
+            
+            prompt = f"""
+            You are an AI assistant helping a user understand a book.
+            Answer the question based ONLY on the provided context.
+            Keep the answer concise (max 3 sentences).
+            
+            Context: {context[:10000]}...
+            
+            Question: {question}
+            """
+            
+            response = await gemini_generate_content_pacing(client, model_name, contents=prompt, api_key=key)
+            return response.text.strip()
+        except Exception as e:
+            last_error = e
+            error_str = str(e)
+            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str or "503" in error_str:
+                print(f"WARNING: Key {i+1} failed ({error_str}). Trying next...")
+                continue
+            else:
+                break
+                
+    return f"Error with Gemini pool: {str(last_error)}"
 
-def suggest_questions(context):
+async def suggest_questions(context):
     """
     Suggests 2 interesting questions. Tries DeepSeek first, then Gemini.
     """
@@ -295,7 +327,7 @@ def suggest_questions(context):
             """
             
             data = {
-                "model": "deepseek/deepseek-chat",
+                "model": "nvidia/nemotron-3-super-120b-a12b:free",
                 "messages": [
                     {"role": "user", "content": prompt}
                 ]
@@ -313,29 +345,89 @@ def suggest_questions(context):
             print(f"DeepSeek Suggestion Error: {e}. Falling back to Gemini.")
 
     # Fallback to Gemini
-    return suggest_questions_with_gemini(context)
+    return await suggest_questions_with_gemini(context)
 
-def suggest_questions_with_gemini(context):
-    print("Using Gemini for Suggested Questions...")
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        return ["What is the plot?", "Who are the characters?"]
+async def suggest_questions_with_gemini(context):
+    """Generates suggested questions using Gemini with key rotation and circuit breaker."""
+    from src.gemini_utils import is_key_on_cooldown, mark_key_failed
+    
+    print("Using Gemini for Suggested Questions with Key Rotation...")
+    
+    from src.config import get_allocated_keys
+    available_keys = get_allocated_keys(purpose="knowledge")
+    
+    if not available_keys:
+        return ["What is the main plot?", "Who are the key characters?"]
         
-    try:
-        client, model_name = get_gemini_model(capability="text", api_key=api_key)
-        
-        prompt = f"""
-        Generate 2 interesting questions a reader might ask about this book.
-        Return ONLY a JSON array of strings. Example: ["Question 1?", "Question 2?"]
-        
-        Context: {context[:5000]}...
-        """
-        
-        response = client.models.generate_content(model=model_name, contents=prompt)
-        return parse_json_list(response.text.strip())
-    except Exception as e:
-        print(f"Gemini Suggestion Error: {e}")
-        return ["What is the plot?", "Who are the characters?"]
+    last_error = None
+    for i, key in enumerate(available_keys):
+        if is_key_on_cooldown(key):
+            print(f"  -> Skipping Gemini Key {i+1} (on cooldown)")
+            continue
+            
+        try:
+            print(f"  -> Using Gemini Key {i+1}/{len(available_keys)} for Suggestions...")
+            client, model_name = get_gemini_model(capability="text", api_key=key)
+            
+            prompt = f"""
+            Generate 2 interesting questions a reader might ask about this book.
+            Return ONLY a JSON array of strings. Example: ["Question 1?", "Question 2?"]
+            
+            Context: {context[:5000]}...
+            """
+            
+            response = await gemini_generate_content_pacing(client, model_name, contents=prompt, api_key=key)
+            questions = parse_json_list(response.text.strip())
+            if questions:
+                return questions
+        except Exception as e:
+            last_error = e
+            error_str = str(e)
+            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                mark_key_failed(key)
+            print(f"WARNING: Key {i+1} failed ({e}). Trying next...")
+            continue
+            
+    print(f"Gemini Suggestion Error (Pool): {last_error}")
+    return ["What is the plot?", "Who are the characters?"]
+
+async def ask_question_with_gemini(text, question):
+    """Asks a question using Gemini with key rotation and circuit breaker."""
+    from src.gemini_utils import is_key_on_cooldown, mark_key_failed
+    
+    print(f"Answering question using Gemini with rotation...")
+    
+    available_keys = PODCAST_API_KEYS + GEMINI_API_KEYS
+    available_keys = list(dict.fromkeys(available_keys))
+    
+    last_error = None
+    for i, key in enumerate(available_keys):
+        if is_key_on_cooldown(key):
+            continue
+            
+        try:
+            print(f"  -> Using Gemini Key {i+1}/{len(available_keys)} for Q&A...")
+            client, model_name = get_gemini_model(capability="text", api_key=key)
+            
+            prompt = f"""
+            Answer the following question based on the provided text.
+            If the answer isn't in the text, say you don't know based on the provided context.
+            
+            Context: {text[:10000]}...
+            
+            Question: {question}
+            """
+            
+            response = await gemini_generate_content_pacing(client, model_name, contents=prompt, api_key=key)
+            return response.text
+        except Exception as e:
+            last_error = e
+            if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                mark_key_failed(key)
+            print(f"WARNING: Key {i+1} failed. Trying next...")
+            continue
+            
+    return f"I'm sorry, I couldn't generate an answer right now. (All AI keys exhausted or failed). Error: {last_error}"
 
 def parse_json_list(content):
     try:

@@ -3,8 +3,10 @@ import asyncio
 import os
 import random
 import time
+import requests
+from typing import List, Optional
 
-async def generate_video_with_deapi(image_path, prompt, output_dir, duration=5):
+async def generate_video_with_deapi(image_path, prompt, output_dir, duration=5, model="SVD"):
     """
     Generates a video from an image using DepAI's img2vid endpoint.
     
@@ -13,6 +15,7 @@ async def generate_video_with_deapi(image_path, prompt, output_dir, duration=5):
         prompt: Text prompt to guide the animation
         output_dir: Directory to save the video
         duration: Video duration in seconds (default 5)
+        model: The model to use (SVD, LTX-2-19B, etc.)
         
     Returns:
         Path to the generated video file or None on failure
@@ -38,9 +41,14 @@ async def generate_video_with_deapi(image_path, prompt, output_dir, duration=5):
         form_data.add_field('image', image_data, filename=os.path.basename(image_path), content_type='image/jpeg')
         form_data.add_field('prompt', prompt)
         form_data.add_field('duration', str(duration))
-        form_data.add_field('model', 'SVD')  # Stable Video Diffusion
+        form_data.add_field('model', model)
         
-        print(f" Requesting video generation from DepAI...")
+        # LTX-2 specific enhancements if requested
+        if "LTX" in model:
+            form_data.add_field('fps', '24')
+            form_data.add_field('resolution', '1024x1024')
+        
+        print(f" Requesting video generation from DepAI using model: {model}...")
         
         async with aiohttp.ClientSession() as session:
             # Step 1: Submit the request
@@ -66,7 +74,8 @@ async def generate_video_with_deapi(image_path, prompt, output_dir, duration=5):
                 print(f" Video request ID: {request_id}")
             
             # Step 2: Poll for completion
-            max_attempts = 60  # 2 minutes max (2s intervals)
+            # Video generation is slow, so we poll for up to 10 minutes for LTX-2
+            max_attempts = 300 if "LTX" in model else 60 
             poll_interval = 2
             result_url = None
             
@@ -109,7 +118,7 @@ async def generate_video_with_deapi(image_path, prompt, output_dir, duration=5):
                 video_data = await video_response.read()
                 
                 # Save the video
-                filename = f"video_{os.path.basename(image_path)}.mp4"
+                filename = f"video_{model.lower()}_{os.path.basename(image_path)}.mp4"
                 output_path = os.path.join(output_dir, filename)
                 
                 with open(output_path, 'wb') as f:
@@ -120,6 +129,52 @@ async def generate_video_with_deapi(image_path, prompt, output_dir, duration=5):
     
     except Exception as e:
         print(f" DepAI video generation error: {e}")
-        import traceback
-        traceback.print_exc()
+        return None
+
+async def combine_videos_with_audio(video_paths: List[str], audio_path: str, output_path: str):
+    """
+    Combines multiple video segments and overlays an audio track using MoviePy.
+    """
+    try:
+        from moviepy import VideoFileClip, concatenate_videoclips, AudioFileClip
+        
+        print(f" Combining {len(video_paths)} videos with audio: {audio_path}")
+        
+        clips = []
+        for path in video_paths:
+            if os.path.exists(path):
+                clips.append(VideoFileClip(path))
+        
+        if not clips:
+            print(" No valid video clips to combine")
+            return None
+            
+        # Concatenate videos
+        final_video = concatenate_videoclips(clips, method="compose")
+        
+        # Load audio
+        if os.path.exists(audio_path):
+            audio_clip = AudioFileClip(audio_path)
+            
+            # If video is shorter than audio, loop video or just cut audio
+            # For "Overview", we usually cut audio to video length or vice versa
+            # Let's match audio to video length for now
+            if audio_clip.duration > final_video.duration:
+                audio_clip = audio_clip.subclipped(0, final_video.duration)
+            
+            final_video = final_video.with_audio(audio_clip)
+        
+        # Write final file
+        final_video.write_videofile(output_path, codec="libx264", audio_codec="aac")
+        
+        # Close clips to free memory
+        for clip in clips:
+            clip.close()
+        if 'audio_clip' in locals():
+            audio_clip.close()
+        final_video.close()
+        
+        return output_path
+    except Exception as e:
+        print(f" Video combination error: {e}")
         return None

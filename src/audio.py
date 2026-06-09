@@ -1,66 +1,132 @@
 import asyncio
 import requests
 
-from google import genai
-from src.config import ELEVENLABS_API_KEY, GEMINI_API_KEY, DEEPGRAM_API_KEY, POLLINATIONS_API_KEY
+try:
+    from google import genai
+except ImportError:
+    genai = None
+
+from src.config import ELEVENLABS_API_KEY, GEMINI_API_KEYS, DEEPGRAM_API_KEY, POLLINATIONS_API_KEY, PODCAST_API_KEY
 from src.prompts import SSML_PROMPT
 
 # Configure Gemini
 # genai.configure(api_key=GEMINI_API_KEY) # Not needed with new SDK client
 
-async def generate_ssml(text):
+async def generate_ssml(text, chapter_id=None):
     """
-    Rewrites text into SSML using Gemini for natural narration.
+    Rewrites text into SSML using Gemini for natural narration with key rotation.
+    Implements database caching to save API quota.
     """
+    from src.database import Chapter, engine, Session
+    from src.config import PODCAST_API_KEYS, GEMINI_API_KEYS
+    
+    # 1. Check Cache
+    if chapter_id:
+        with Session(engine) as session:
+            ch = session.get(Chapter, chapter_id)
+            if ch and ch.enhanced_script and "<speak>" in ch.enhanced_script:
+                print(f"CACHE HIT: Using existing SSML script for chapter {chapter_id}")
+                return ch.enhanced_script
+
     print("Generating SSML with Gemini...")
-    try:
-        client = genai.Client(api_key=GEMINI_API_KEY)
-        response = client.models.generate_content(model='gemini-2.0-flash', contents=SSML_PROMPT.format(text=text))
-        ssml_text = response.text
+    
+    # 2. Key Rotation (Allocated for Audio)
+    from src.config import get_allocated_keys
+    available_keys = get_allocated_keys(purpose="audio")
+    
+    if not available_keys:
+        print("FAILED: No Gemini keys available for SSML. Returning original text.")
+        return text
         
-        # Basic cleanup to ensure it's just the SSML if the model adds markdown
-        if "```xml" in ssml_text:
-            ssml_text = ssml_text.split("```xml")[1].split("```")[0].strip()
-        elif "```" in ssml_text:
-            ssml_text = ssml_text.split("```")[1].split("```")[0].strip()
+    last_error = None
+    for i, key in enumerate(available_keys):
+        try:
+            print(f"  -> Using Gemini Key {i+1}/{len(available_keys)} for SSML...")
+            from src.gemini_utils import get_gemini_model
+            client, model_name = get_gemini_model(capability="text", api_key=key)
+            from src.gemini_utils import gemini_generate_content_pacing
+            response = await gemini_generate_content_pacing(
+                client, 
+                model_name, 
+                contents=SSML_PROMPT.format(text=text),
+                api_key=key
+            )
+            ssml_text = response.text
             
-        return ssml_text
-    except Exception as e:
-        print(f"Error generating SSML: {e}")
-        return text # Fallback to original text
+            # Basic cleanup to ensure it's just the SSML if the model adds markdown
+            if "```xml" in ssml_text:
+                ssml_text = ssml_text.split("```xml")[1].split("```")[0].strip()
+            elif "```" in ssml_text:
+                ssml_text = ssml_text.split("```")[1].split("```")[0].strip()
+                
+            if not ssml_text or "<speak>" not in ssml_text:
+                print(f"WARNING: Key {i+1} returned invalid SSML. Trying next...")
+                continue
+            
+            # 3. Save to Cache
+            if chapter_id:
+                try:
+                    with Session(engine) as session:
+                        ch = session.get(Chapter, chapter_id)
+                        if ch:
+                            ch.enhanced_script = ssml_text
+                            session.add(ch)
+                            session.commit()
+                            print(f"CACHE SAVE: Stored SSML for chapter {chapter_id}")
+                except: pass
+
+            print(f"SUCCESS: SSML generated successfully using key {i+1}")
+            return ssml_text
+            
+        except Exception as e:
+            last_error = e
+            error_str = str(e)
+            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str or "quota" in error_str.lower():
+                print(f"WARNING: Gemini Key {i+1} exhausted. Switching to next...")
+                continue
+            else:
+                print(f"WARNING: Gemini Key {i+1} failed with error: {e}")
+                if i < len(GEMINI_API_KEYS) - 1:
+                    continue
+                break
+    
+    print(f"ERROR: All Gemini keys failed for SSML. Falling back to plain text. Error: {last_error}")
+    return text
 
 def format_text_for_deepgram(text: str) -> str:
     """
     Format text according to Deepgram best practices for natural speech.
+    Converts unsupported tags like [laughs] into compatible markers.
     Based on: https://developers.deepgram.com/docs/improving-aura-2-formatting
     """
     import re
     
-    # Preserve emotional markers like [laughs], [gasps], [sighs]
-    # We'll temporarily replace them to avoid punctuation changes
-    markers = re.findall(r'\[\w+\]', text)
-    for i, marker in enumerate(markers):
-        text = text.replace(marker, f"__MARKER_{i}__", 1)
+    # 1. Convert emotional markers to Deepgram-compatible speech patterns
+    text = text.replace("[laughs]", "um...")
+    text = text.replace("[gasps]", "wow...")
+    text = text.replace("[sighs]", ". . .")
+    text = text.replace("[excitedly]", "")
+    text = text.replace("[whispers]", "...")
     
-    # Add comma before direct address names (e.g., "Hello Maria" -> "Hello, Maria")
-    # Common names in podcast context
+    # Remove any remaining bracketed tags that aren't supported
+    text = re.sub(r'\[\w+\]', '', text)
+    
+    # 2. Add comma before direct address names
     common_names = ['Jax', 'Emma', 'Maria', 'John', 'Sarah']
     for name in common_names:
         text = re.sub(rf'\b(Hello|Hey|Hi|Wait|Listen)\s+{name}\b', rf'\1, {name}', text, flags=re.IGNORECASE)
     
-    # Fix missing commas in common conversational patterns
-    text = re.sub(r'\b(you know)\s+([A-Z])', r'\1, \2', text)  # "you know I" -> "you know, I"
-    text = re.sub(r'\b(I mean)\s+([A-Z])', r'\1, \2', text)  # "I mean it" -> "I mean, it"
-    text = re.sub(r'\b(honestly)\s+([A-Z])', r'\1, \2', text, flags=re.IGNORECASE)  # "honestly I" -> "honestly, I"
-    text = re.sub(r'\b(like)\s+([A-Z])', r'\1, \2', text)  # "like I" -> "like, I" (only if followed by capital)
+    # 3. Fix missing commas in common conversational patterns
+    text = re.sub(r'\b(you know)\s+([A-Z])', r'\1, \2', text)
+    text = re.sub(r'\b(I mean)\s+([A-Z])', r'\1, \2', text)
+    text = re.sub(r'\b(honestly)\s+([A-Z])', r'\1, \2', text, flags=re.IGNORECASE)
     
-    # Ensure space before punctuation where needed
-    text = re.sub(r'(\w)(\?|!)', r'\1 \2', text)  # Add space before ? and ! if missing
-    text = re.sub(r'\s{2,}', ' ', text)  # Remove double spaces
+    # 4. Ensure space before punctuation where needed
+    # (Deepgram guide mentions spaces before ? and ! can improve emphasis)
+    text = re.sub(r'(\w)(\?|!)', r'\1 \2', text)
     
-    # Restore emotional markers
-    for i, marker in enumerate(markers):
-        text = text.replace(f"__MARKER_{i}__", marker)
+    # 5. Clean up spaces
+    text = re.sub(r'\s{2,}', ' ', text)
     
     return text.strip()
 
@@ -89,10 +155,104 @@ def get_deepgram_voice(voice_id: str) -> str:
         "energetic_female": "aura-2-aries-en",  # Warm, Energetic, Caring
         "friendly_female": "aura-2-helena-en",  # Caring, Natural, Positive
         "expressive_female": "aura-2-aurora-en", # Cheerful, Expressive, Energetic
+        "deep_male": "aura-2-neptune-en",       # Deep, Cinematic, Professional (Neptune)
+        "assistant_female": "aura-2-asteria-en", # Friendly, Natural, Assistant (Asteria)
+        # Podcast specific voices
+        "aura-2-jax-en": "aura-2-orion-en",      # Jax -> Orion (Energetic, engaging)
+        "aura-2-emma-en": "aura-2-athena-en",     # Emma -> Athena (Smart, witty, calm)
     }
-    return voice_map.get(voice_id, "aura-2-cordelia-en")
+    return voice_map.get(voice_id, "aura-2-neptune-en")
 
-async def generate_audio_deepgram(text, output_path, voice_id="pNInz6obpgDQGcFmaJgB", title=None, author=None):
+async def enhance_narrative_script(text: str, **kwargs) -> str:
+    """
+    Uses Gemini to rewrite the text with narrator-friendly punctuation 
+    (ellipses for pauses, dashes for emphasis) to reduce robotic sound.
+    Implements key rotation and database caching.
+    """
+    from src.database import Chapter, engine, Session
+    from src.config import PODCAST_API_KEYS, GEMINI_API_KEYS
+    
+    # 1. Check Cache if chapter_id is provided
+    chapter_id = kwargs.get('chapter_id')
+    if chapter_id:
+        with Session(engine) as session:
+            ch = session.get(Chapter, chapter_id)
+            if ch and ch.enhanced_script:
+                print(f"CACHE HIT: Using existing enhanced script for chapter {chapter_id}")
+                return ch.enhanced_script
+
+    # 1. Key Rotation (Allocated for Audio)
+    from src.config import get_allocated_keys
+    available_keys = get_allocated_keys(purpose="audio")
+    
+    if not available_keys:
+        return text
+        
+    prompt = f"""
+    Act as a professional audiobook director. 
+    Rewrite the following book text into a "Narrator's Script".
+    
+    GUIDELINES:
+    1. Add ellipses (...) where a narrator should take a breath or pause for dramatic effect.
+    2. Use dashes (—) to show a shift in thought or to emphasize a word.
+    3. If a sentence is very long, break it into smaller, punchier phrases.
+    4. Keep the story EXACTLY the same. Do not change words, only add punctuation for "pacing" and "prosody".
+    5. Do not include any meta-commentary, just the rewritten script.
+    
+    TEXT TO REWRITE:
+    {text[:4000]} 
+    """
+    
+    last_error = None
+    for i, key in enumerate(available_keys):
+        try:
+            print(f"  -> Using Gemini Key {i+1}/{len(available_keys)} for Script Enhancement...")
+            
+            from src.gemini_utils import get_gemini_model
+            client, model_name = get_gemini_model(capability="text", api_key=key)
+            from src.gemini_utils import gemini_generate_content_pacing
+            response = await gemini_generate_content_pacing(
+                client, 
+                model_name, 
+                contents=prompt,
+                api_key=key
+            )
+            enhanced_text = response.text.strip()
+            
+            # Clean up any markdown
+            if "```" in enhanced_text:
+                enhanced_text = enhanced_text.split("```")[1].split("```")[0].strip()
+            
+            # 3. Save to Cache if chapter_id provided
+            if chapter_id:
+                try:
+                    with Session(engine) as session:
+                        ch = session.get(Chapter, chapter_id)
+                        if ch:
+                            ch.enhanced_script = enhanced_text
+                            session.add(ch)
+                            session.commit()
+                            print(f"CACHE SAVE: Stored enhanced script for chapter {chapter_id}")
+                except Exception as cache_err:
+                    print(f"WARNING: Failed to save to cache: {cache_err}")
+
+            print(f"SUCCESS: Script enhanced for prosody using key {i+1} ({len(text)} -> {len(enhanced_text)} chars)")
+            return enhanced_text
+            
+        except Exception as e:
+            last_error = e
+            error_str = str(e)
+            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str or "quota" in error_str.lower():
+                print(f"WARNING: Gemini Key {i+1} exhausted (Enhancement). Switching to next...")
+                continue
+            else:
+                print(f"WARNING: Gemini Key {i+1} failed (Enhancement): {e}")
+                continue
+    
+    print(f"ERROR: All Gemini keys failed for Script Enhancement. Using raw text. Error: {last_error}")
+    return text
+
+async def generate_audio_deepgram(text, output_path, voice_id="pNInz6obpgDQGcFmaJgB", title=None, author=None, chapter_id=None, is_podcast=False):
     """
     Generates audio using Deepgram Aura-2 TTS API.
     Automatically selects appropriate voice based on voice_id mapping.
@@ -104,28 +264,55 @@ async def generate_audio_deepgram(text, output_path, voice_id="pNInz6obpgDQGcFma
     
     # Get the appropriate Deepgram voice
     deepgram_voice = get_deepgram_voice(voice_id)
-    print(f"🎧 Generating audio using Deepgram Aura-2 ({deepgram_voice})...")
+    assistant_voice = "aura-2-asteria-en"
+    narrator_voice = "aura-2-neptune-en" # Default to Neptune as requested
     
-    url = f"https://api.deepgram.com/v1/speak?model={deepgram_voice}"
+    print(f"--- Generating Premium Audiobook with Deepgram ---")
     
     headers = {
         "Authorization": f"Token {DEEPGRAM_API_KEY}",
         "Content-Type": "application/json"
     }
-    
-    # === SMART FORMATTING BASED ON TEXT LENGTH ===
-    # Short texts (like podcast segments) - just use basic formatting
-    # Long texts (audiobooks) - use professional narration with intro/outro
-    if len(text) < 500:
-        # Short text - skip professional narration (no intro/outro)
-        formatted_text = format_text_for_deepgram(text)
+
+    async def get_audio_bytes(t, v):
+        u = f"https://api.deepgram.com/v1/speak?model={v}"
+        p = {"text": t}
+        r = requests.post(u, headers=headers, json=p)
+        if r.status_code == 200:
+            return r.content
+        raise Exception(f"Deepgram Error: {r.status_code} - {r.text}")
+
+    # === STEP 1: GENERATE ASSISTANT INTRO (Voice A) ===
+    # Skip intro for podcasts to keep them snappy
+    intro_bytes = b""
+    if not is_podcast and title and author and len(text) > 500:
+        intro_text = f"Hi! I'm your Book two Vision assistant. I've prepared a special, deep-sound narration of {title} by {author} for you. Sit back, relax, and enjoy the story."
+        print(f"INFO: Generating Assistant Intro (Asteria)...")
+        try:
+            intro_bytes = await asyncio.to_thread(lambda: requests.post(
+                f"https://api.deepgram.com/v1/speak?model={assistant_voice}", 
+                headers=headers, 
+                json={"text": intro_text}
+            ).content)
+        except:
+            print("WARNING: Intro generation failed, skipping.")
+
+    # === STEP 2: ENHANCE STORY SCRIPT (Gemini Prosody) ===
+    enhanced_text = text
+    if not is_podcast:
+        print(f"INFO: Enhancing story script with Gemini for natural pacing...")
+        enhanced_text = await enhance_narrative_script(text, chapter_id=chapter_id)
     else:
-        # Long text - apply full professional narration
-        # Only pass title/author if provided (implies audiobook mode)
-        professional_text = format_for_professional_narration(text, book_title=title, author=author)
-        formatted_text = format_text_for_deepgram(professional_text)
+        print(f"INFO: Skipping script enhancement for podcast segment.")
     
-    print(f"📝 Text formatted for natural TTS ({len(text)} -> {len(formatted_text)} chars)")
+    # === STEP 3: GENERATE STORY (Use requested voice) ===
+    # For podcasts, we MUST use the deepgram_voice determined from voice_id
+    current_voice = deepgram_voice if is_podcast else narrator_voice
+    print(f"INFO: Generating Audio with Deepgram ({current_voice})...")
+    
+    formatted_text = format_text_for_deepgram(enhanced_text)
+    
+    print(f"INFO: Text formatted for natural TTS ({len(text)} -> {len(formatted_text)} chars)")
     
     # Deepgram has a 2000 character limit per request. We must chunk.
     def chunk_text_by_sentence(text, max_length=1900):
@@ -148,14 +335,16 @@ async def generate_audio_deepgram(text, output_path, voice_id="pNInz6obpgDQGcFma
         def process_chunks():
             chunks = chunk_text_by_sentence(formatted_text)
             if len(chunks) > 1:
-                print(f"🔪 Text too long for single request. Split into {len(chunks)} chunks.")
+                print(f"INFO: Text too long for single request. Split into {len(chunks)} chunks.")
             
-            all_audio = b""
+            all_audio = intro_bytes # Start with assistant intro (empty if podcast)
             for i, chunk in enumerate(chunks):
                 if not chunk.strip(): continue
                 payload = {"text": chunk}
                 print(f"  -> Sending chunk {i+1}/{len(chunks)} ({len(chunk)} chars)...")
-                response = requests.post(url, headers=headers, json=payload)
+                # Use current_voice (either requested voice_id or narrator default)
+                u = f"https://api.deepgram.com/v1/speak?model={current_voice}"
+                response = requests.post(u, headers=headers, json=payload)
                 if response.status_code == 200:
                     all_audio += response.content
                 else:
@@ -168,29 +357,36 @@ async def generate_audio_deepgram(text, output_path, voice_id="pNInz6obpgDQGcFma
             return output_path
             
         result = await asyncio.to_thread(process_chunks)
-        print(f"✅ Deepgram audio saved: {result}")
+        print(f"SUCCESS: Deepgram audio saved: {result}")
         return result
     except Exception as e:
         print(f"❌ Deepgram failed: {e}")
         raise e
 
-async def generate_audio(text, output_path="audiobook.mp3", voice_id="pNInz6obpgDQGcFmaJgB", stability=0.5, similarity_boost=0.75, style=0.0, use_speaker_boost=True, provider="elevenlabs", speaking_rate=1.0, title=None, author=None):
+async def generate_audio(text, output_path="audiobook.mp3", voice_id="pNInz6obpgDQGcFmaJgB", stability=0.5, similarity_boost=0.75, style=0.0, use_speaker_boost=True, provider="elevenlabs", speaking_rate=1.0, title=None, author=None, chapter_id=None, is_podcast=False):
     """
     Generates audio using the specified provider with automatic fallback.
     Priority: Deepgram -> Edge TTS (inbuilt)
     """
-    print(f"🎵 Generating audio with provider: {provider} (Rate: {speaking_rate})")
+    print(f"--- Generating audio with provider: {provider} (Rate: {speaking_rate})")
+    
+    # --- Step 0: Natural Narration SSML ---
+    processed_text = text
+    if not is_podcast and provider in ["deepgram", "elevenlabs"]:
+        processed_text = await generate_ssml(text, chapter_id=chapter_id)
+    elif is_podcast:
+        print("INFO: Skipping SSML generation for podcast segment.")
     
     # Deepgram with automatic fallback to edge-tts
     if provider == "deepgram":
         if not DEEPGRAM_API_KEY:
-            print("⚠️  Deepgram key missing. Falling back to Inbuilt (Edge TTS).")
+            print("WARNING: Deepgram key missing. Falling back to Inbuilt (Edge TTS).")
             return await generate_audio_edge(text, output_path, voice_id, rate=speaking_rate)
         
         try:
-            return await generate_audio_deepgram(text, output_path, voice_id, title=title, author=author)
+            return await generate_audio_deepgram(processed_text, output_path, voice_id, title=title, author=author, chapter_id=chapter_id, is_podcast=is_podcast)
         except Exception as e:
-            print(f"⚠️  Deepgram failed: {e}. Falling back to Inbuilt (Edge TTS).")
+            print(f"WARNING: Deepgram failed: {e}. Falling back to Inbuilt (Edge TTS).")
             return await generate_audio_edge(text, output_path, voice_id, rate=speaking_rate)
     
     # Edge TTS (inbuilt)
@@ -201,28 +397,21 @@ async def generate_audio(text, output_path="audiobook.mp3", voice_id="pNInz6obpg
     elif provider == "voice_clone":
         from src.state import state
         if not state.voice_sample_path or not state.colab_url:
-            print("⚠️ Voice sample or Colab URL missing. Falling back to Inbuilt (Edge TTS).")
+            print("WARNING: Voice sample or Colab URL missing. Falling back to Inbuilt (Edge TTS).")
             return await generate_audio_edge(text, output_path, voice_id, rate=speaking_rate)
         return await generate_audio_voice_clone(text, output_path, state.voice_sample_path, state.colab_url)
     
     
-    # Pollinations
-    elif provider == "pollinations":
-        if not POLLINATIONS_API_KEY:
-            print("⚠️  Pollinations API key missing. Falling back to Inbuilt (Edge TTS).")
-            return await generate_audio_edge(text, output_path, voice_id, rate=speaking_rate)
-        return await generate_audio_pollinations(text, output_path, voice_id)
-
     # ElevenLabs with fallback
     elif provider == "elevenlabs":
         if not ELEVENLABS_API_KEY:
-            print("⚠️  ElevenLabs key missing. Falling back to Inbuilt (Edge TTS).")
+            print("WARNING: ElevenLabs key missing. Falling back to Inbuilt (Edge TTS).")
             return await generate_audio_edge(text, output_path, voice_id, rate=speaking_rate)
-        return await generate_audio_elevenlabs(text, output_path, voice_id, stability, similarity_boost, style, use_speaker_boost)
+        return await generate_audio_elevenlabs(processed_text, output_path, voice_id, stability, similarity_boost, style, use_speaker_boost)
     
     # Default fallback
     else:
-        print(f"⚠️  Unknown provider '{provider}'. Using Edge TTS.")
+        print(f"WARNING: Unknown provider '{provider}'. Using Edge TTS.")
         return await generate_audio_edge(text, output_path, voice_id, rate=speaking_rate)
 
 async def generate_audio_elevenlabs(text, output_path, voice_id, stability, similarity_boost, style, use_speaker_boost):
@@ -284,59 +473,6 @@ async def generate_audio_elevenlabs(text, output_path, voice_id, stability, simi
             
     except Exception as e:
         print(f"Exception in ElevenLabs TTS: {e}")
-        print("Falling back to Edge TTS...")
-        return await generate_audio_edge(text, output_path, voice_id)
-
-async def generate_audio_pollinations(text, output_path, voice_id="nova", model="elevenlabs"):
-    """
-    Generates audio using Pollinations AI TTS API.
-    """
-    print(f"Generating audio for {len(text)} characters using Pollinations AI ({voice_id})...")
-    if not POLLINATIONS_API_KEY:
-        raise Exception("POLLINATIONS_API_KEY is missing!")
-    
-    url = "https://gen.pollinations.ai/v1/audio/speech"
-    
-    headers = {
-        "Authorization": f"Bearer {POLLINATIONS_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    
-    # Use ElevenLabs mapped voice if requested
-    mapped_voice = voice_id
-    if voice_id == "pNInz6obpgDQGcFmaJgB":
-        mapped_voice = "onyx"
-    elif voice_id == "21m00Tcm4TlvDq8ikWAM":
-        mapped_voice = "nova"
-    
-    payload = {
-        "model": model,
-        "input": text,
-        "voice": mapped_voice
-    }
-    
-    try:
-        def make_request():
-            return requests.post(url, headers=headers, json=payload, timeout=60)
-            
-        response = await asyncio.to_thread(make_request)
-        
-        if response.status_code == 200:
-            def write_file():
-                with open(output_path, "wb") as f:
-                    f.write(response.content)
-                return output_path
-                
-            result = await asyncio.to_thread(write_file)
-            print(f"✅ Pollinations audio saved to {result}")
-            return result
-        else:
-            error_msg = f"Pollinations API Error: {response.status_code} - {response.text}"
-            print(error_msg)
-            raise Exception(error_msg)
-            
-    except Exception as e:
-        print(f"Exception in Pollinations TTS: {e}")
         print("Falling back to Edge TTS...")
         return await generate_audio_edge(text, output_path, voice_id)
 
@@ -725,7 +861,7 @@ async def prepare_audiobook_text(text: str, book_title: str = "this audiobook", 
         from google import genai
         from src.prompts import AUDIOBOOK_NARRATOR_PROMPT
         
-        print(f"📖 Preparing audiobook narration for: {book_title}")
+        print(f"INFO: Preparing audiobook narration for: {book_title}")
         
         # For very long texts, process in chunks
         max_chunk = 8000

@@ -25,12 +25,17 @@
     <link rel="stylesheet" href="style.css?v=28">
     <link rel="stylesheet" href="carousel.css?v=2">
     <link rel="stylesheet" href="panels.css?v=9">
-
+    <script src="auth.js"></script>
 </head>
 
 
 
 <body>
+    <script>
+        requireAuth().then(session => {
+            if (session) injectNavUser();
+        });
+    </script>
 
 
 
@@ -62,7 +67,7 @@
 
         <div class="nav-links">
 
-            <a href="index.html" class="active" aria-current="page">Home</a>
+            <a href="modes.html" class="active" aria-current="page">Home</a>
 
 
 
@@ -70,8 +75,14 @@
 
             <a href="about.html">About us</a>
 
-            <button class="btn-tour-help" id="btn-tour" onclick="startTour()" title="Take a tour" aria-label="Start guided tour">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            <button class="btn-tour-help" id="btn-tour" onclick="startTour()" title="Take a tour"
+                aria-label="Start guided tour">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
             </button>
 
         </div>
@@ -187,7 +198,7 @@
 
 
 
-                        <!-- THREE-PANEL LAYOUT -->
+            <!-- THREE-PANEL LAYOUT -->
             <div class="nb-layout" id="nb-layout">
 
                 <!-- LEFT PANEL: Characters -->
@@ -219,9 +230,22 @@
                             <span id="book-author" class="nb-book-author">Author Name</span>
                         </div>
                         <div class="nb-header-actions">
-                            <button class="nb-icon-btn" onclick="toggleSettings()" title="Settings" aria-label="Settings">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                            <button class="nb-icon-btn" onclick="toggleSettings()" title="Settings"
+                                aria-label="Settings">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2">
+                                    <circle cx="12" cy="12" r="3" />
+                                    <path
+                                        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                                </svg>
                             </button>
+                        </div>
+                    </div>
+
+                    <!-- Chapter Tabs Bar -->
+                    <div class="nb-chapter-tabs-container">
+                        <div class="nb-chapter-tabs" id="chapter-tabs" aria-label="Book Chapters">
+                            <!-- Tabs injected via JS -->
                         </div>
                     </div>
 
@@ -237,11 +261,13 @@
 
                     <!-- Chat input bar -->
                     <div class="nb-chat-input-bar">
-                        <input type="text" id="qa-input" placeholder="Start typing..."
-                            class="glass-input qa-input" autocomplete="off" aria-label="Chat input">
+                        <input type="text" id="qa-input" placeholder="Start typing..." class="glass-input qa-input"
+                            autocomplete="off" aria-label="Chat input">
                         <span class="nb-source-count">1 source</span>
                         <button class="nb-send-btn" id="btn-send-qa" aria-label="Send message">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                            </svg>
                         </button>
                     </div>
 
@@ -255,7 +281,8 @@
                                     <div style="font-weight:700;font-size:0.85rem;">Booked &amp; Busy</div>
                                     <div style="font-size:0.72rem;opacity:0.7;">with Jax &amp; Emma</div>
                                 </div>
-                                <button class="btn-icon-sm" onclick="closePodcast()" aria-label="Close Podcast">&#10005;</button>
+                                <button class="btn-icon-sm" onclick="closePodcast()"
+                                    aria-label="Close Podcast">&#10005;</button>
                             </div>
                             <div class="podcast-visualizer" aria-hidden="true">
                                 <div class="speaker-avatar" id="podcast-avatar">&#9997;&#127996;</div>
@@ -263,20 +290,37 @@
                                     <span></span><span></span><span></span><span></span><span></span>
                                 </div>
                             </div>
-                            <div class="podcast-transcript" id="podcast-transcript" aria-live="polite">Generating script...</div>
+                            <div class="podcast-transcript" id="podcast-transcript" aria-live="polite">Generating
+                                script...</div>
                         </div>
 
                         <!-- Waveform visualizer -->
                         <div class="nb-dock-wave" aria-hidden="true">
                             <div class="audio-visualizer">
-                                <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-                                <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-                                <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-                                <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-                                <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-                                <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-                                <div class="bar"></div><div class="bar"></div><div class="bar"></div>
-                                <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+                                <div class="bar"></div>
+                                <div class="bar"></div>
+                                <div class="bar"></div>
+                                <div class="bar"></div>
+                                <div class="bar"></div>
+                                <div class="bar"></div>
+                                <div class="bar"></div>
+                                <div class="bar"></div>
+                                <div class="bar"></div>
+                                <div class="bar"></div>
+                                <div class="bar"></div>
+                                <div class="bar"></div>
+                                <div class="bar"></div>
+                                <div class="bar"></div>
+                                <div class="bar"></div>
+                                <div class="bar"></div>
+                                <div class="bar"></div>
+                                <div class="bar"></div>
+                                <div class="bar"></div>
+                                <div class="bar"></div>
+                                <div class="bar"></div>
+                                <div class="bar"></div>
+                                <div class="bar"></div>
+                                <div class="bar"></div>
                             </div>
                         </div>
 
@@ -296,19 +340,36 @@
                         <div class="nb-dock-controls">
                             <div class="nb-dock-left">
                                 <button class="btn-sm nb-dock-gen-btn" onclick="generateAudio()">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg> Generate
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <path d="M9 18V5l12-2v13" />
+                                        <circle cx="6" cy="18" r="3" />
+                                        <circle cx="18" cy="16" r="3" />
+                                    </svg> Generate
                                 </button>
                                 <button class="btn-sm btn-podcast nb-dock-gen-btn" onclick="generatePodcast()">
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg> Podcast
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2">
+                                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                                        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                                    </svg> Podcast
                                 </button>
                             </div>
                             <div class="nb-dock-center-controls">
                                 <button class="btn-control" onclick="skip(-15)" aria-label="Rewind 15 seconds">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/><text x="9" y="15" font-size="7" fill="currentColor">15</text></svg>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                        <path
+                                            d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" />
+                                        <text x="9" y="15" font-size="7" fill="currentColor">15</text>
+                                    </svg>
                                 </button>
                                 <button class="btn-play" id="btn-play-pause" aria-label="Play or Pause">&#9654;</button>
                                 <button class="btn-control" onclick="skip(15)" aria-label="Forward 15 seconds">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/><text x="9" y="15" font-size="7" fill="currentColor">15</text></svg>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                        <path
+                                            d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z" />
+                                        <text x="9" y="15" font-size="7" fill="currentColor">15</text>
+                                    </svg>
                                 </button>
                             </div>
                             <div class="nb-dock-right">
@@ -326,10 +387,19 @@
                 <!-- RIGHT PANEL: Studio -->
                 <div class="nb-panel nb-panel-right glass" id="nb-panel-right">
                     <div class="nb-panel-header">
-                        <h3><span>&#127916;</span> <span class="nb-panel-label">Studio</span></h3>
+                        <h3><span>🎬</span> <span class="nb-panel-label">Studio</span></h3>
                         <div class="nb-header-actions">
-                            <button class="nb-collapse-btn" id="btn-collapse-right" aria-label="Collapse panel" title="Collapse Studio">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                            <div id="background-task-indicator" class="hidden" onclick="reopenVideoProgress()"
+                                title="Generation in progress">
+                                <div class="pulse-dot"></div>
+                                <span class="indicator-text">Generating Video...</span>
+                            </div>
+                            <button class="nb-collapse-btn" id="btn-collapse-right" aria-label="Collapse panel"
+                                title="Collapse Studio">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="9 18 15 12 9 6" />
+                                </svg>
                             </button>
                         </div>
                     </div>
@@ -339,42 +409,202 @@
                         <p class="nb-section-label">GENERATE</p>
                         <div class="nb-studio-grid">
                             <button class="nb-studio-card" id="btn-audio">
-                                <span class="nb-studio-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></span>
+                                <span class="nb-studio-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M9 18V5l12-2v13" />
+                                        <circle cx="6" cy="18" r="3" />
+                                        <circle cx="18" cy="16" r="3" />
+                                    </svg></span>
                                 <span>Audiobook</span>
                                 <span class="nb-card-arrow">&#8250;</span>
                             </button>
                             <button class="nb-studio-card btn-podcast" id="btn-podcast">
-                                <span class="nb-studio-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></span>
+                                <span class="nb-studio-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                                        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                                        <line x1="12" y1="19" x2="12" y2="23" />
+                                        <line x1="8" y1="23" x2="16" y2="23" />
+                                    </svg></span>
                                 <span>Podcast</span>
                                 <span class="nb-card-arrow">&#8250;</span>
                             </button>
                             <button class="nb-studio-card" id="btn-visuals">
-                                <span class="nb-studio-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></span>
+                                <span class="nb-studio-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                                        <circle cx="8.5" cy="8.5" r="1.5" />
+                                        <polyline points="21 15 16 10 5 21" />
+                                    </svg></span>
                                 <span>Visuals</span>
                                 <span class="nb-card-arrow">&#8250;</span>
                             </button>
+                            <button class="nb-studio-card" id="btn-video-overview" onclick="generateVideoOverview()">
+                                <span class="nb-studio-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18" />
+                                        <line x1="7" y1="2" x2="7" y2="22" />
+                                        <line x1="17" y1="2" x2="17" y2="22" />
+                                        <line x1="2" y1="12" x2="22" y2="12" />
+                                        <line x1="2" y1="7" x2="7" y2="7" />
+                                        <line x1="2" y1="17" x2="7" y2="17" />
+                                        <line x1="17" y1="17" x2="22" y2="17" />
+                                        <line x1="17" y1="7" x2="22" y2="7" />
+                                    </svg></span>
+                                <span>Video Overview</span>
+                                <span class="nb-card-arrow">&#8250;</span>
+                            </button>
+                            <button class="nb-studio-card" id="btn-ambient-music" onclick="openAmbientMusicPicker()">
+                                <span class="nb-studio-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M9 18V5l12-2v13" />
+                                        <circle cx="6" cy="18" r="3" />
+                                        <circle cx="18" cy="16" r="3" />
+                                    </svg></span>
+                                <span>Ambient Music</span>
+                                <span class="nb-card-arrow">&#8250;</span>
+                            </button>
                             <button class="nb-studio-card" onclick="exportAll && exportAll()">
-                                <span class="nb-studio-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></span>
+                                <span class="nb-studio-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                        <polyline points="7 10 12 15 17 10" />
+                                        <line x1="12" y1="15" x2="12" y2="3" />
+                                    </svg></span>
                                 <span>Export All</span>
                                 <span class="nb-card-arrow">&#8250;</span>
                             </button>
                         </div>
 
-                        <!-- Visuals section -->
-                        <p class="nb-section-label" style="margin-top:1rem;">VISUALS</p>
-                        <div class="carousel-container nb-carousel">
-                            <button class="carousel-btn prev" onclick="prevImage()" aria-label="Previous Image">&#10094;</button>
-                            <div class="image-display" id="image-display" aria-label="Generated Visuals">
-                                <div class="placeholder-content">
-                                    <div class="icon-large" aria-hidden="true">&#128444;&#65039;</div>
-                                    <p>Generate visuals to see the story come to life.</p>
+                        <!-- Visuals / Video section -->
+                        <div class="nb-visuals-header">
+                            <p class="nb-section-label">VISUALS</p>
+                            <div class="nb-visuals-toggle">
+                                <button class="toggle-btn active" id="btn-toggle-visuals"
+                                    onclick="toggleVisualMode('visuals')">Visuals</button>
+                                <button class="toggle-btn" id="btn-toggle-video"
+                                    onclick="toggleVisualMode('video')">Video</button>
+                            </div>
+                        </div>
+
+                        <div id="visuals-player-container" class="visuals-player-container">
+                            <!-- Image Carousel (Original) -->
+                            <div class="carousel-container nb-carousel" id="carousel-wrapper">
+                                <button class="carousel-btn prev" onclick="prevImage()"
+                                    aria-label="Previous Image">&#10094;</button>
+                                <div class="image-display" id="image-display" aria-label="Generated Visuals">
+                                    <div class="placeholder-content">
+                                        <div class="icon-large" aria-hidden="true">&#128444;&#65039;</div>
+                                        <p>Generate visuals to see the story come to life.</p>
+                                    </div>
+                                </div>
+                                <button class="carousel-btn next" onclick="nextImage()"
+                                    aria-label="Next Image">&#10095;</button>
+                                <div class="carousel-counter" id="carousel-counter">0/0</div>
+                            </div>
+
+                            <!-- Video Player (New) -->
+                            <div class="video-container hidden" id="video-wrapper">
+                                <video id="studio-video-player" preload="auto">
+                                    Your browser does not support the video tag.
+                                </video>
+                                <div class="video-controls" id="video-controls">
+                                    <div class="video-progress-container" id="video-progress-container">
+                                        <div class="video-progress-bar" id="video-progress-bar-inner"></div>
+                                    </div>
+                                    <div class="video-controls-row">
+                                        <button class="v-control-btn" id="btn-video-play-pause">▶</button>
+                                        <div class="video-time">
+                                            <span id="video-current">0:00</span> / <span id="video-total">0:00</span>
+                                        </div>
+                                        <button class="v-control-btn" id="btn-video-fullscreen"
+                                            style="margin-left:auto;">⛶</button>
+                                    </div>
+                                </div>
+                                <div id="video-placeholder" class="placeholder-content cinematic-placeholder">
+                                    <div class="placeholder-glow"></div>
+                                    <div class="icon-large pulse">🎬</div>
+                                    <div class="placeholder-info">
+                                        <h3>Cinematic Overview</h3>
+                                        <p>Generate a high-fidelity video summary of your book using LTX-2.</p>
+                                        <button class="btn-primary btn-sm" onclick="generateVideoOverview()">Create
+                                            Video</button>
+                                    </div>
                                 </div>
                             </div>
-                            <button class="carousel-btn next" onclick="nextImage()" aria-label="Next Image">&#10095;</button>
-                            <div class="carousel-counter" id="carousel-counter">0/0</div>
                         </div>
                         <div class="carousel-indicators" id="carousel-indicators"></div>
 
+                        <!-- Output Tabs (NotebookLM Style) -->
+                        <p class="nb-section-label" style="margin-top:1.5rem;">OUTPUT</p>
+                        <div class="nb-output-container glass-card">
+                            <div class="nb-output-tabs">
+                                <button class="nb-output-tab active" onclick="switchOutputTab('audiobook')">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" style="margin-right:4px;">
+                                        <path d="M9 18V5l12-2v13" />
+                                        <circle cx="6" cy="18" r="3" />
+                                        <circle cx="18" cy="16" r="3" />
+                                    </svg>
+                                    Audiobook
+                                </button>
+                                <button class="nb-output-tab" onclick="switchOutputTab('podcast')">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                        stroke-width="2" style="margin-right:4px;">
+                                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                                        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                                        <line x1="12" y1="19" x2="12" y2="23" />
+                                    </svg>
+                                    Podcast
+                                </button>
+                            </div>
+
+                            <div class="nb-output-content">
+                                <!-- Audiobook Tab -->
+                                <div id="output-tab-audiobook" class="output-tab-pane">
+                                    <div class="mini-player">
+                                        <div class="mini-player-info">
+                                            <div class="mini-icon">🎵</div>
+                                            <div>
+                                                <h4 id="output-audio-title">Main Narrative</h4>
+                                                <p id="output-audio-status">No audio generated</p>
+                                            </div>
+                                        </div>
+                                        <div class="mini-player-controls">
+                                            <button class="mini-play-btn" id="btn-mini-play-audio"
+                                                onclick="toggleAudio()">
+                                                <span class="play-icon">▶</span>
+                                            </button>
+                                            <div class="mini-progress-track" onclick="seekAudio(event)">
+                                                <div id="mini-audio-progress" class="mini-progress-fill"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Podcast Tab -->
+                                <div id="output-tab-podcast" class="output-tab-pane hidden">
+                                    <div class="mini-player">
+                                        <div class="mini-player-info">
+                                            <div class="mini-icon">🎙️</div>
+                                            <div>
+                                                <h4 id="output-podcast-title">Booked & Busy</h4>
+                                                <p id="output-podcast-status">No podcast generated</p>
+                                            </div>
+                                        </div>
+                                        <div class="mini-player-controls">
+                                            <button class="mini-play-btn" id="btn-mini-play-podcast"
+                                                onclick="togglePodcastPlayback()">
+                                                <span class="play-icon">▶</span>
+                                            </button>
+                                            <div class="mini-progress-track">
+                                                <div id="mini-podcast-progress" class="mini-progress-fill"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -407,16 +637,17 @@
 
                 <div class="immersive-controls">
 
-                    <button class="btn-icon-lg" onclick="prevScene()">â®ï¸</button>
+                    <button class="btn-icon-lg" onclick="prevScene()">&#9664;</button>
 
-                    <button class="btn-icon-lg" id="btn-immersive-play" onclick="toggleImmersivePlay()">â¸ï¸</button>
+                    <button class="btn-icon-lg" id="btn-immersive-play" onclick="toggleImmersivePlay()">&#9654;</button>
 
-                    <button class="btn-icon-lg" onclick="nextScene()">â­ï¸</button>
+                    <button class="btn-icon-lg" onclick="nextScene()">&#9654;</button>
 
                     <button class="btn-icon-lg" id="btn-generate-motion" onclick="generateMotionForCurrentScene()"
                         title="Animate Scene" style="margin-left: 1rem;">🎬</button>
 
-                    <button class="btn-icon-lg" onclick="closeImmersiveMode()" style="margin-left: 1rem;">âŒ</button>
+                    <button class="btn-icon-lg" onclick="closeImmersiveMode()"
+                        style="margin-left: 1rem;">&#10005;</button>
 
                 </div>
 
@@ -440,7 +671,10 @@
             <div class="style-picker-header">
                 <h3>Choose Art Style</h3>
                 <button class="nb-icon-btn" onclick="closeStylePicker()" aria-label="Close">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
                 </button>
             </div>
             <div class="style-picker-grid">
@@ -463,32 +697,119 @@
                     <span class="style-option-label">Fantasy</span>
                 </button>
             </div>
-        </div>    </div>
+        </div>
+    </div>
 
     <!-- Audio Picker Modal -->
-    <div class="style-picker-overlay" id="audio-picker-overlay" onclick="closeAudioPicker(event)" style="display: none;">
+    <div class="style-picker-overlay" id="audio-picker-overlay" onclick="closeAudioPicker(event)"
+        style="display: none;">
         <div class="style-picker-modal glass" style="max-width: 400px;">
             <div class="style-picker-header">
                 <h3 id="audio-picker-title">Generate Audio</h3>
                 <button class="nb-icon-btn" onclick="closeAudioPicker()" aria-label="Close">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
                 </button>
             </div>
             <div style="padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem;">
                 <div class="form-group">
-                    <label for="modal-audio-provider" style="font-size: 0.9rem; font-weight: 500; margin-bottom: 0.5rem; display: block; color: var(--text-light);">Audio Provider</label>
+                    <label for="modal-audio-provider"
+                        style="font-size: 0.9rem; font-weight: 500; margin-bottom: 0.5rem; display: block; color: var(--text-light);">Audio
+                        Provider</label>
                     <select id="modal-audio-provider" class="glass-input" style="width: 100%;">
-                        <option value="deepgram">Deepgram (Fast)</option>
+                        <option value="deepgram">Deepgram (Primary)</option>
                         <option value="elevenlabs">ElevenLabs (High Quality)</option>
-                        <option value="pollinations">Pollinations (Many Models)</option>
                         <option value="inbuilt">Inbuilt (Free)</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label for="modal-voice-id" style="font-size: 0.9rem; font-weight: 500; margin-bottom: 0.5rem; display: block; color: var(--text-light);">Voice ID / Name</label>
-                    <input type="text" id="modal-voice-id" class="glass-input" style="width: 100%;" placeholder="e.g. nova">
+                    <label for="modal-voice-id"
+                        style="font-size: 0.9rem; font-weight: 500; margin-bottom: 0.5rem; display: block; color: var(--text-light);">Voice
+                        ID / Name</label>
+                    <input type="text" id="modal-voice-id" class="glass-input" style="width: 100%;"
+                        placeholder="e.g. deep_male (Neptune)">
                 </div>
-                <button class="btn-primary" style="margin-top: 1rem; width: 100%; justify-content: center;" onclick="confirmAudioPicker()">Generate</button>
+                <button class="btn-primary" style="margin-top: 1rem; width: 100%; justify-content: center;"
+                    onclick="confirmAudioPicker()">Generate</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ambient Music Picker Modal -->
+    <div class="style-picker-overlay" id="music-picker-overlay" onclick="closeMusicPicker(event)"
+        style="display: none;">
+        <div class="style-picker-modal glass" style="max-width: 450px;">
+            <div class="style-picker-header">
+                <h3>Ambient Music</h3>
+                <button class="nb-icon-btn" onclick="closeMusicPicker()" aria-label="Close">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                </button>
+            </div>
+            <div style="padding: 1rem; display: flex; flex-direction: column; gap: 0.75rem;">
+                <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">Select background music
+                    to play during your sessions.</p>
+                <div class="music-list" id="music-list"
+                    style="max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 0.5rem;">
+                    <!-- Music items injected via JS -->
+                    <div class="music-item glass-card" onclick="toggleMusic('none', this)">
+                        <span>None</span>
+                        <span class="music-status">Selected</span>
+                    </div>
+                    <div class="music-item glass-card" onclick="toggleMusic('lofi', this)">
+                        <span>Lo-Fi Study</span>
+                        <span class="music-status"></span>
+                    </div>
+                    <div class="music-item glass-card" onclick="toggleMusic('nature', this)">
+                        <span>Forest Rain</span>
+                        <span class="music-status"></span>
+                    </div>
+                    <div class="music-item glass-card" onclick="toggleMusic('cinematic', this)">
+                        <span>Cinematic Ambient</span>
+                        <span class="music-status"></span>
+                    </div>
+                    <div class="music-item glass-card" onclick="toggleMusic('space', this)">
+                        <span>Space Journey</span>
+                        <span class="music-status"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Video Generation Progress Overlay -->
+    <div class="style-picker-overlay" id="video-progress-overlay"
+        style="display: none; pointer-events: all; cursor: wait;">
+        <div class="glass-card"
+            style="padding: 2rem; text-align: center; max-width: 400px; border-radius: 20px; border: 1px solid var(--primary);">
+            <div class="loader-container" style="margin-bottom: 1.5rem;">
+                <div class="book">
+                    <div class="book__pg-shadow"></div>
+                    <div class="book__pg"></div>
+                    <div class="book__pg book__pg--2"></div>
+                    <div class="book__pg book__pg--3"></div>
+                    <div class="book__pg book__pg--4"></div>
+                    <div class="book__pg book__pg--5"></div>
+                </div>
+            </div>
+            <h3 style="margin-bottom: 0.5rem; color: var(--text-main);">Creating Video Overview</h3>
+            <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem;">This process uses LTX-2 19B and
+                will take a significant amount of time (several minutes).</p>
+            <div class="upload-progress-container" style="height: 6px; margin-bottom: 1.5rem;">
+                <div class="upload-progress-bar" id="video-progress-bar" style="width: 5%;"></div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                <p id="video-progress-status" style="font-size: 0.8rem; color: var(--primary); font-weight: 600;">
+                    Initializing generation...</p>
+                <button class="btn-sm"
+                    style="align-self: center; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);"
+                    onclick="minimizeVideoProgress()">
+                    Run in Background
+                </button>
             </div>
         </div>
     </div>

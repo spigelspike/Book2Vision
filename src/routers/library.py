@@ -17,7 +17,7 @@ async def get_library():
     try:
         return {"books": library_manager.get_books()}
     except Exception as e:
-        print(f"❌ Library fetch error: {e}")
+        print(f"[ERROR] Library fetch error: {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail="Failed to fetch library")
 
@@ -34,6 +34,7 @@ async def delete_book(book_id: int):
 @router.post("/library/load/{book_id}")
 async def load_book(book_id: int):
     """Load a book from the library into active state."""
+    state.reset()
     state.book_id = book_id
     book = library_manager.get_book(book_id)
     if not book:
@@ -52,8 +53,12 @@ async def load_book(book_id: int):
         full_text = library_manager.get_book_full_text(book_id)
         analysis = library_manager.get_analysis(book_id)
         
+        # Check for cached digest in DB
+        cached_book = library_manager.get_book(book_id)
+        cached_digest = cached_book.get("book_digest") if cached_book else None
+        
         if full_text and analysis:
-            print(f"✅ Loaded book from DB: {book['title']}")
+            print(f"[INFO] Loaded book from DB: {book['title']}")
             state.full_text = full_text
             state.analysis_result = analysis
             state.ingestion_result = {
@@ -63,8 +68,18 @@ async def load_book(book_id: int):
                 "full_text": full_text,
                 "filename": filename
             }
+            # Use cached digest if available, else compute and save
+            if cached_digest:
+                print("   Using cached book digest.")
+                state.book_digest = cached_digest
+            else:
+                print("   No cached digest found. Computing now...")
+                from src.text_sampler import create_book_digest
+                state.book_digest = create_book_digest(full_text)
+                # Save it back to DB for next time
+                library_manager.update_book_digest(book_id, state.book_digest)
         else:
-            print(f"⚠️ DB miss. Re-ingesting book: {book['title']}...")
+            print(f"[WARN] DB miss. Re-ingesting book: {book['title']}...")
             # Re-ingest (fast, mostly reading text)
             ingestion_result = await ingest_book(file_path)
             ingestion_result["filename"] = filename
@@ -73,9 +88,13 @@ async def load_book(book_id: int):
             state.ingestion_result = ingestion_result
             state.full_text = ingestion_result.get("full_text", "")
             
-            # Re-analyze
+            # Compute digest for full-book coverage
+            from src.text_sampler import create_book_digest
+            state.book_digest = create_book_digest(state.full_text)
+            
+            # Re-analyze using digest (covers full book)
             print(f"Re-analyzing book: {book['title']}...")
-            analysis = await semantic_analysis(state.full_text)
+            analysis = await semantic_analysis(state.book_digest)
             state.analysis_result = analysis
             
             # Save back to DB for next time

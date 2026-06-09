@@ -137,10 +137,15 @@
             }
         }
     </style>
+    <script src="auth.js"></script>
 </head>
 
 <body>
-
+    <script>
+        requireAuth().then(session => {
+            if (session) injectNavUser();
+        });
+    </script>
     <div class="split-container">
         <!-- STORY MODE SIDE -->
         <a href="index.html" class="split-pane story">

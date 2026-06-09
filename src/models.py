@@ -14,11 +14,13 @@ class AudioRequest(BaseModel):
     provider: str = "elevenlabs"  # elevenlabs, deepgram, inbuilt, voice_clone
     voice_sample: Optional[str] = None
     colab_url: Optional[str] = None
+    chapter_id: Optional[int] = None
 
 
 class VisualsRequest(BaseModel):
     style: str = "storybook"
     seed: int = 42
+    chapter_id: Optional[int] = None
 
 
 class QARequest(BaseModel):
@@ -39,6 +41,11 @@ class VideoRequest(BaseModel):
     image_filename: str
     prompt: str = ""
     duration: int = 5
+
+class VideoOverviewRequest(BaseModel):
+    chapter_id: Optional[int] = None
+    model: str = "LTX-2-19B-Distilled-FP8"
+    duration_per_scene: int = 5
 
 
 class StorybookConfig(BaseModel):

@@ -834,7 +834,7 @@
 .style-option[data-style="storybook"] { background-image: url('assets/styles/storybook.jpg'); }
 .style-option[data-style="cinematic"] { background-image: url('assets/styles/cinematic.jpg'); }
 .style-option[data-style="anime"] { background-image: url('assets/styles/anime.jpg'); }
-.style-option[data-style="watercolor"] { background-image: url('assets/styles/watercolor.jpg'); }
+.style-option[data-style="watercolor"] { background-image: url('assets/styles/watercolor.jpg?v=2'); }
 .style-option[data-style="cyberpunk"] { background-image: url('assets/styles/cyberpunk.jpg'); }
 .style-option[data-style="fantasy"] { background-image: url('assets/styles/fantasy.jpg'); }
 
@@ -1063,4 +1063,30 @@
   }
   .nb-dock-wave { display: none; }
   .nb-chat-thread { padding-bottom: 130px; }
+}
+
+.music-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.music-item:hover {
+  background: rgba(127, 90, 240, 0.1);
+  border-color: rgba(127, 90, 240, 0.3);
+}
+
+.music-item.selected {
+  border-color: var(--primary);
+  background: rgba(127, 90, 240, 0.15);
+}
+
+.music-status {
+  font-size: 0.75rem;
+  color: var(--primary);
+  font-weight: 600;
 }
