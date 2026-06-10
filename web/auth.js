@@ -65,6 +65,19 @@ async function signOut() {
 // EMAIL AUTH
 // ============================================================
 
+async function signInAsGuest() {
+    const session = {
+        user: {
+            email: 'guest@book2vision.com',
+            id: 'guest-id-' + Date.now(),
+            user_metadata: { full_name: 'Guest User' }
+        },
+        access_token: 'guest-token'
+    };
+    localStorage.setItem('b2v_session', JSON.stringify(session));
+    window.location.href = 'index.html';
+}
+
 async function signInWithEmail(email, password) {
     if (email === DEMO_USER.email && password === DEMO_USER.password) {
         const session = {
@@ -97,7 +110,7 @@ async function signUpWithEmail(email, password, fullName) {
 }
 
 async function signInWithOAuth(provider) {
-    showAuthError('Social login is disabled in demo mode.');
+    showAuthError('Social login is disabled in beta version.');
 }
 
 async function resetPassword(email) {

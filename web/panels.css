@@ -805,7 +805,7 @@
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.4) 50%, rgba(0,0,0,0) 100%);
+  background: transparent;
   z-index: 1;
   transition: opacity 0.3s ease;
 }
@@ -1090,3 +1090,75 @@
   color: var(--primary);
   font-weight: 600;
 }
+
+/* ══════════════════════════════════════════════════════════
+   CHAPTER TABS
+   ══════════════════════════════════════════════════════════ */
+.nb-chapter-tabs-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.nb-tab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.nb-tab:hover {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.1);
+}
+
+.nb-tab.active {
+  background: rgba(127, 90, 240, 0.15);
+  border-color: var(--primary);
+}
+
+.nb-tab-index {
+  font-weight: 700;
+  color: var(--primary);
+  margin-right: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.nb-tab-title {
+  flex: 1;
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nb-tab-audio-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: transform 0.2s;
+  padding: 0.25rem;
+  margin-left: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+}
+
+.nb-tab-audio-btn:hover {
+  transform: scale(1.1);
+  opacity: 1;
+}
+
+.carousel-container:hover .play-pause { opacity: 1 !important; }
+
+.carousel-btn.play-pause { font-size: 1.5rem; background: rgba(0,0,0,0.5); border-radius: 50%; padding: 0.5rem 1rem; color: white; border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(4px); transition: all 0.3s; }
+.carousel-btn.play-pause:hover { background: var(--primary, #7f5af0); transform: translateX(-50%) scale(1.1); }

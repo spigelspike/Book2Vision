@@ -371,13 +371,203 @@ p {
   letter-spacing: 0.02em;
 }
 
-.btn-primary::before {
+/* --- Premium Podcast Player --- */
+.premium-podcast {
+  position: relative;
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-lg);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.8), inset 0 2px 10px rgba(255, 255, 255, 0.05);
+  background: var(--bg-dark);
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+}
+
+.podcast-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: radial-gradient(circle at 50% 120%, var(--speaker-color, rgba(127, 90, 240, 0.3)) 0%, transparent 70%);
+  transition: background 0.8s ease;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.podcast-backdrop::after {
   content: '';
   position: absolute;
-  top: 0;
-  left: -100%;
-  width: 50%;
+  inset: 0;
+  backdrop-filter: blur(40px);
+  z-index: 1;
+}
+
+.podcast-content-layer {
+  position: relative;
+  z-index: 2;
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
   height: 100%;
+  flex: 1;
+}
+
+.premium-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-xl);
+}
+
+.podcast-branding {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.brand-icon {
+  font-size: 1.5rem;
+  opacity: 0.9;
+  filter: drop-shadow(0 0 8px rgba(255,255,255,0.4));
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-title {
+  font-weight: 800;
+  font-size: 1rem;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #fff;
+}
+
+.brand-subtitle {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: 'Outfit', sans-serif;
+  letter-spacing: 1px;
+}
+
+.close-btn {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.close-btn:hover {
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  transform: scale(1.1);
+}
+
+.podcast-focal-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: var(--space-xl);
+  text-align: center;
+}
+
+.speaker-ring-container {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.premium-avatar {
+  position: relative;
+  z-index: 10;
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: #101014;
+  border: 2px solid var(--speaker-color, rgba(255,255,255,0.2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2rem;
+  box-shadow: 0 0 30px var(--speaker-glow, rgba(0,0,0,0.5));
+  transition: border-color 0.5s ease, box-shadow 0.5s ease;
+}
+
+.speaker-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--speaker-color, var(--primary));
+  opacity: 0;
+  z-index: 1;
+}
+
+/* Add an active class to trigger ring animations when playing */
+.podcast-player.playing .ring-1 {
+  animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+}
+.podcast-player.playing .ring-2 {
+  animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) 0.6s infinite;
+}
+.podcast-player.playing .ring-3 {
+  animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) 1.2s infinite;
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.8); opacity: 0.8; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+.podcast-lyric-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 90%;
+}
+
+.speaker-badge {
+  background: var(--speaker-color, rgba(255,255,255,0.1));
+  color: #fff;
+  padding: 0.25rem 0.75rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  box-shadow: 0 0 15px var(--speaker-glow, transparent);
+  transition: background 0.5s ease, box-shadow 0.5s ease;
+  border: 1px solid rgba(255,255,255,0.2);
+}
+
+.premium-lyric {
+  font-size: 1.5rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #fff;
+  text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  min-height: 3rem; /* maintain space */
+}
+
+.premium-lyric.text-transitioning {
+  opacity: 0;
+  transform: translateY(10px);
+}
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
   transform: skewX(-20deg);
   transition: 0.5s;
@@ -1199,19 +1389,44 @@ p {
 
 
   .nav-links {
-
     display: none;
-
+    flex-direction: column;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    background: rgba(16, 16, 20, 0.95);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding: var(--space-md);
+    gap: var(--space-md);
+    z-index: 1000;
   }
 
+  .nav-links.active {
+    display: flex;
+  }
 
+  .nav-links a {
+    margin-left: 0;
+    width: 100%;
+    text-align: center;
+    padding: var(--space-sm);
+  }
 
-  /* Add mobile menu logic if needed */
+  /* Hamburger Animation */
+  .hamburger.active span:nth-child(1) {
+    transform: translateY(8px) rotate(45deg);
+  }
+  .hamburger.active span:nth-child(2) {
+    opacity: 0;
+  }
+  .hamburger.active span:nth-child(3) {
+    transform: translateY(-8px) rotate(-45deg);
+  }
 
   .hamburger {
-
     display: block;
-
   }
 
 
@@ -1456,8 +1671,7 @@ p {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(6px);
+  background: rgba(0, 0, 0, 0.1);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -8354,6 +8568,7 @@ p {
 }
 
 .video-container {
+  position: relative;
   width: 100%;
   aspect-ratio: 16/9;
   display: flex;
@@ -8451,7 +8666,10 @@ p {
 
 /* ── Cinematic Placeholder ── */
 .cinematic-placeholder {
-  position: relative;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
   height: 100%;
   background: radial-gradient(circle at center, #1a1a24 0%, #050505 100%) !important;
   display: flex !important;
@@ -8676,4 +8894,36 @@ p {
   background: var(--primary);
   width: 0%;
   transition: width 0.1s linear;
+}
+/* --- Hamburger Menu --- */
+.hamburger {
+  display: none;
+  cursor: pointer;
+  z-index: 1001;
+}
+
+.hamburger span {
+  display: block;
+  width: 25px;
+  height: 3px;
+  margin: 5px auto;
+  background-color: var(--text-main);
+  transition: all 0.3s ease-in-out;
+  border-radius: 2px;
+}
+
+/* Lucide Icons Styles */
+[data-lucide] {
+    width: 1em;
+    height: 1em;
+    vertical-align: -0.125em;
+    stroke-width: 2;
+    display: inline-block;
+}
+.icon-sm {
+    width: 0.85em !important;
+    height: 0.85em !important;
+}
+.icon-filled {
+    fill: currentColor;
 }

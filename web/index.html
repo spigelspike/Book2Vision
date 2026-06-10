@@ -24,8 +24,9 @@
 
     <link rel="stylesheet" href="style.css?v=28">
     <link rel="stylesheet" href="carousel.css?v=2">
-    <link rel="stylesheet" href="panels.css?v=9">
+    <link rel="stylesheet" href="panels.css?v=12">
     <script src="auth.js"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
 </head>
 
 
@@ -73,7 +74,7 @@
 
             <a href="library.html">Library</a>
 
-            <a href="about.html">About us</a>
+
 
             <button class="btn-tour-help" id="btn-tour" onclick="startTour()" title="Take a tour"
                 aria-label="Start guided tour">
@@ -105,9 +106,9 @@
 
             <div class="hero-content">
 
-                <h1>Experience Books <br> Like Never Before</h1>
+                <h1>Read, Listen, <br> and Watch</h1>
 
-                <p>Turn any PDF into an immersive multimedia journey with AI-powered narration and visualization.</p>
+                <p>Upload a book and automatically generate an audio podcast and visual scenes.</p>
 
 
 
@@ -204,7 +205,7 @@
                 <!-- LEFT PANEL: Characters -->
                 <div class="nb-panel nb-panel-left glass" id="nb-panel-left">
                     <div class="nb-panel-header">
-                        <h3><span>&#9679;</span> <span class="nb-panel-label">Characters</span></h3>
+                        <h3><span><i data-lucide="users" class="icon-sm"></i></span> <span class="nb-panel-label">Characters</span></h3>
                         <div class="nb-header-actions">
                             <span class="badge-count" id="entity-count">0</span>
                         </div>
@@ -273,25 +274,37 @@
 
                     <!-- PINNED AUDIO PLAYER at very bottom of center column -->
                     <div class="nb-audio-dock" id="nb-audio-dock" aria-hidden="true">
-                        <!-- Podcast Player (hidden initially) -->
-                        <div id="podcast-player-ui" class="podcast-player hidden fade-in" aria-label="Podcast Player">
-                            <div class="podcast-header">
-                                <span style="font-size:1.1rem;" aria-hidden="true">&#127908;</span>
-                                <div style="flex:1;margin-left:0.5rem;">
-                                    <div style="font-weight:700;font-size:0.85rem;">Booked &amp; Busy</div>
-                                    <div style="font-size:0.72rem;opacity:0.7;">with Jax &amp; Emma</div>
+                        <!-- Premium Podcast Player UI -->
+                        <div id="podcast-player-ui" class="podcast-player premium-podcast hidden fade-in" aria-label="Podcast Player">
+                            <div class="podcast-backdrop" id="podcast-backdrop"></div>
+                            <div class="podcast-content-layer">
+                                <div class="podcast-header premium-header">
+                                    <div class="podcast-branding">
+                                        <div class="brand-icon">🎧</div>
+                                        <div class="brand-text">
+                                            <div class="brand-title">Booked &amp; Busy</div>
+                                            <div class="brand-subtitle">AI Podcast</div>
+                                        </div>
+                                    </div>
+                                    <button class="btn-icon-sm close-btn" onclick="closePodcast()" aria-label="Close Podcast"><i data-lucide="x"></i></button>
                                 </div>
-                                <button class="btn-icon-sm" onclick="closePodcast()"
-                                    aria-label="Close Podcast">&#10005;</button>
-                            </div>
-                            <div class="podcast-visualizer" aria-hidden="true">
-                                <div class="speaker-avatar" id="podcast-avatar">&#9997;&#127996;</div>
-                                <div class="podcast-wave">
-                                    <span></span><span></span><span></span><span></span><span></span>
+                                
+                                <div class="podcast-focal-area">
+                                    <div class="speaker-ring-container" id="speaker-ring-container">
+                                        <div class="speaker-ring ring-1"></div>
+                                        <div class="speaker-ring ring-2"></div>
+                                        <div class="speaker-ring ring-3"></div>
+                                        <div class="speaker-avatar premium-avatar" id="podcast-avatar">🎙️</div>
+                                    </div>
+                                    
+                                    <div class="podcast-lyric-container">
+                                        <div class="speaker-badge" id="speaker-badge">System</div>
+                                        <div class="podcast-transcript premium-lyric" id="podcast-transcript" aria-live="polite">
+                                            Generating script...
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="podcast-transcript" id="podcast-transcript" aria-live="polite">Generating
-                                script...</div>
                         </div>
 
                         <!-- Waveform visualizer -->
@@ -363,7 +376,7 @@
                                         <text x="9" y="15" font-size="7" fill="currentColor">15</text>
                                     </svg>
                                 </button>
-                                <button class="btn-play" id="btn-play-pause" aria-label="Play or Pause">&#9654;</button>
+                                <button class="btn-play" id="btn-play-pause" aria-label="Play or Pause"><i data-lucide="play" class="icon-filled"></i></button>
                                 <button class="btn-control" onclick="skip(15)" aria-label="Forward 15 seconds">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                                         <path
@@ -416,7 +429,7 @@
                                         <circle cx="18" cy="16" r="3" />
                                     </svg></span>
                                 <span>Audiobook</span>
-                                <span class="nb-card-arrow">&#8250;</span>
+                                <span class="nb-card-arrow"><i data-lucide="chevron-right"></i></span>
                             </button>
                             <button class="nb-studio-card btn-podcast" id="btn-podcast">
                                 <span class="nb-studio-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -427,7 +440,7 @@
                                         <line x1="8" y1="23" x2="16" y2="23" />
                                     </svg></span>
                                 <span>Podcast</span>
-                                <span class="nb-card-arrow">&#8250;</span>
+                                <span class="nb-card-arrow"><i data-lucide="chevron-right"></i></span>
                             </button>
                             <button class="nb-studio-card" id="btn-visuals">
                                 <span class="nb-studio-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -437,7 +450,7 @@
                                         <polyline points="21 15 16 10 5 21" />
                                     </svg></span>
                                 <span>Visuals</span>
-                                <span class="nb-card-arrow">&#8250;</span>
+                                <span class="nb-card-arrow"><i data-lucide="chevron-right"></i></span>
                             </button>
                             <button class="nb-studio-card" id="btn-video-overview" onclick="generateVideoOverview()">
                                 <span class="nb-studio-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -452,7 +465,7 @@
                                         <line x1="17" y1="7" x2="22" y2="7" />
                                     </svg></span>
                                 <span>Video Overview</span>
-                                <span class="nb-card-arrow">&#8250;</span>
+                                <span class="nb-card-arrow"><i data-lucide="chevron-right"></i></span>
                             </button>
                             <button class="nb-studio-card" id="btn-ambient-music" onclick="openAmbientMusicPicker()">
                                 <span class="nb-studio-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -462,7 +475,7 @@
                                         <circle cx="18" cy="16" r="3" />
                                     </svg></span>
                                 <span>Ambient Music</span>
-                                <span class="nb-card-arrow">&#8250;</span>
+                                <span class="nb-card-arrow"><i data-lucide="chevron-right"></i></span>
                             </button>
                             <button class="nb-studio-card" onclick="exportAll && exportAll()">
                                 <span class="nb-studio-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -472,7 +485,7 @@
                                         <line x1="12" y1="15" x2="12" y2="3" />
                                     </svg></span>
                                 <span>Export All</span>
-                                <span class="nb-card-arrow">&#8250;</span>
+                                <span class="nb-card-arrow"><i data-lucide="chevron-right"></i></span>
                             </button>
                         </div>
 
@@ -491,15 +504,17 @@
                             <!-- Image Carousel (Original) -->
                             <div class="carousel-container nb-carousel" id="carousel-wrapper">
                                 <button class="carousel-btn prev" onclick="prevImage()"
-                                    aria-label="Previous Image">&#10094;</button>
+                                    aria-label="Previous Image">❮</button>
+                                <button class="carousel-btn play-pause" id="btn-carousel-play" onclick="toggleCarouselPlay()" 
+                                    aria-label="Play/Pause Carousel" style="left: 50%; top: auto; bottom: 10px; transform: translateX(-50%); opacity: 0;">▶</button>
                                 <div class="image-display" id="image-display" aria-label="Generated Visuals">
                                     <div class="placeholder-content">
-                                        <div class="icon-large" aria-hidden="true">&#128444;&#65039;</div>
+                                        <div class="icon-large" aria-hidden="true"><i data-lucide="image"></i></div>
                                         <p>Generate visuals to see the story come to life.</p>
                                     </div>
                                 </div>
                                 <button class="carousel-btn next" onclick="nextImage()"
-                                    aria-label="Next Image">&#10095;</button>
+                                    aria-label="Next Image">❯</button>
                                 <div class="carousel-counter" id="carousel-counter">0/0</div>
                             </div>
 
@@ -518,7 +533,7 @@
                                             <span id="video-current">0:00</span> / <span id="video-total">0:00</span>
                                         </div>
                                         <button class="v-control-btn" id="btn-video-fullscreen"
-                                            style="margin-left:auto;">⛶</button>
+                                            style="margin-left:auto;"><i data-lucide="maximize"></i></button>
                                     </div>
                                 </div>
                                 <div id="video-placeholder" class="placeholder-content cinematic-placeholder">
@@ -633,21 +648,20 @@
 
                     <p id="immersive-text" class="typewriter-text"></p>
 
+                    <div class="immersive-actions" style="display: flex; gap: 10px; align-items: center; width: 100%;">
+                        <span id="immersive-counter" class="immersive-counter">0/0</span>
+                        <button class="btn-icon" id="btn-immersive-prev" onclick="prevScene()" style="background: rgba(255,255,255,0.1); border:none; border-radius: 50%; width: 40px; height: 40px; color: white; cursor: pointer;">⏮️</button>
+                        <button class="btn-icon" id="btn-immersive-play" onclick="toggleImmersivePlay()" style="background: var(--primary); border:none; border-radius: 50%; width: 48px; height: 48px; color: white; cursor: pointer; display:flex; align-items:center; justify-content:center;">▶️</button>
+                        <button class="btn-icon" id="btn-immersive-next" onclick="nextScene()" style="background: rgba(255,255,255,0.1); border:none; border-radius: 50%; width: 40px; height: 40px; color: white; cursor: pointer;">⏭️</button>
+                        <button class="btn-primary btn-sm" id="btn-generate-motion" onclick="generateMotionForCurrentScene()" style="margin-left:auto;">🎬 Animate</button>
+                    </div>
+
                 </div>
 
                 <div class="immersive-controls">
 
-                    <button class="btn-icon-lg" onclick="prevScene()">&#9664;</button>
-
-                    <button class="btn-icon-lg" id="btn-immersive-play" onclick="toggleImmersivePlay()">&#9654;</button>
-
-                    <button class="btn-icon-lg" onclick="nextScene()">&#9654;</button>
-
-                    <button class="btn-icon-lg" id="btn-generate-motion" onclick="generateMotionForCurrentScene()"
-                        title="Animate Scene" style="margin-left: 1rem;">🎬</button>
-
                     <button class="btn-icon-lg" onclick="closeImmersiveMode()"
-                        style="margin-left: 1rem;">&#10005;</button>
+                        style="margin-left: 1rem;"><i data-lucide="x"></i></button>
 
                 </div>
 
@@ -815,7 +829,7 @@
     </div>
 
 
-    <script src="script.js?v=29"></script>
+    <script src="script.js?v=32"></script>
 
 </body>
 

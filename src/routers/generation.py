@@ -17,6 +17,7 @@ from src.visuals import (
     generate_images, generate_entity_image, generate_poster_with_deapi
 )
 from src.video import generate_video_with_deapi, combine_videos_with_audio
+from src.storage import upload_file_to_supabase, get_public_url
 
 router = APIRouter(prefix="/api", tags=["generation"])
 
@@ -179,34 +180,29 @@ async def generate_visuals(req: VisualsRequest, background_tasks: BackgroundTask
         title = state.ingestion_result.get("title", "Unknown") if state.ingestion_result else "Book"
         if title in ["Unknown", "Extracted PDF", "Book"] and state.ingestion_result and state.ingestion_result.get("filename"):
              title = state.ingestion_result.get("filename")
+             
+        file_prefix = f"_{state.book_id}" if getattr(state, "book_id", None) else ""
         
         # Prepare list of expected images so frontend knows what to wait for
         expected_images = []
         
         # 1. Title
         safe_title = "".join([c if c.isalnum() else "_" for c in title])[:50]
-        expected_images.append(f"image_00_title_{safe_title}.jpg")
+        expected_images.append(f"image_00_title{file_prefix}_{safe_title}.jpg")
         
         # 2. Scenes
         scenes = state.analysis_result.get("scenes", [])
         for i in range(len(scenes)):
-            expected_images.append(f"image_01_scene_{i+1:02d}.jpg")
+            expected_images.append(f"image_01_scene{file_prefix}_{i+1:02d}.jpg")
             
-        # 3. Entities (Top 3)
-        entities = state.analysis_result.get("entities", [])
-        top_entities = entities[:3]
-        for i, entity in enumerate(top_entities):
-            if isinstance(entity, list) and len(entity) >= 1:
-                name = entity[0]
-            elif isinstance(entity, tuple) and len(entity) >= 1:
-                name = entity[0]
-            else:
-                name = str(entity)
-            safe_name = "".join([c if c.isalnum() else "_" for c in name])[:30]
-            expected_images.append(f"image_02_entity_{safe_name}.jpg")
-            
-        # Update state with expected paths (relative)
-        state.images_list = [os.path.join(visuals_dir, img) for img in expected_images]
+        # (Entity images are generated separately via their own endpoint, do not expect them here)
+
+        # Return Supabase URLs for frontend immediately
+        from src.storage import get_public_url
+        image_urls = [get_public_url("media", img) for img in expected_images]
+        
+        # Update state with expected paths (Supabase URLs)
+        state.images_list = image_urls
         
         print("=" * 50)
         print(f"VISUALS GENERATION REQUESTED")
@@ -222,7 +218,8 @@ async def generate_visuals(req: VisualsRequest, background_tasks: BackgroundTask
             style=req.style, 
             seed=req.seed, 
             title=title, 
-            include_entities=True
+            include_entities=True,
+            file_prefix=file_prefix
         )
         
         # Update thumbnail in library
@@ -232,17 +229,14 @@ async def generate_visuals(req: VisualsRequest, background_tasks: BackgroundTask
             
             if not has_cover:
                 thumbnail_filename = None
-                scenes = state.analysis_result.get("scenes", [])
-                if len(scenes) > 0:
-                     thumbnail_filename = f"image_01_scene_01.jpg"
-                elif len(expected_images) > 0:
+                if len(expected_images) > 0:
                      thumbnail_filename = expected_images[0]
                 
                 if thumbnail_filename:
-                    library_manager.update_book_thumbnail(state.book_id, f"visuals/{thumbnail_filename}")
+                    # Save the remote url as the thumbnail
+                    thumb_url = get_public_url("media", thumbnail_filename)
+                    library_manager.update_book_thumbnail(state.book_id, thumb_url)
 
-        # Return relative paths for frontend immediately
-        image_urls = [f"/api/assets/visuals/{img}" for img in expected_images]
         print(f"✅ Returning {len(image_urls)} expected images to frontend: {image_urls}")
         return {"images": image_urls, "status": "generating"}
     except HTTPException:
@@ -279,13 +273,19 @@ async def generate_poster(background_tasks: BackgroundTasks):
         poster_path = await generate_poster_with_deapi(title, author, visuals_dir, theme=theme, characters=characters)
         
         if poster_path:
-            filename = os.path.basename(poster_path)
-            library_manager.update_book_thumbnail(state.book_id, f"visuals/{filename}")
-            
-            return {
-                "poster_url": f"/api/assets/visuals/{filename}",
-                "message": "Poster generated successfully"
-            }
+            if poster_path.startswith("http"):
+                library_manager.update_book_thumbnail(state.book_id, poster_path)
+                return {
+                    "poster_url": poster_path,
+                    "message": "Poster generated successfully"
+                }
+            else:
+                filename = os.path.basename(poster_path)
+                library_manager.update_book_thumbnail(state.book_id, f"visuals/{filename}")
+                return {
+                    "poster_url": f"/api/assets/visuals/{filename}",
+                    "message": "Poster generated successfully"
+                }
         else:
              raise HTTPException(status_code=500, detail="Failed to generate poster")
 
@@ -300,7 +300,7 @@ async def generate_poster(background_tasks: BackgroundTasks):
 async def get_entity_image(name: str, role: str = "Character", regenerate: bool = False):
     # Check cache unless regenerating
     if not regenerate and name in state.entity_images:
-        return {"image_url": f"/api/assets/entities/{os.path.basename(state.entity_images[name])}"}
+        return {"image_url": state.entity_images[name]}
         
     try:
         img_dir = os.path.join(UPLOAD_DIR, "entities")
@@ -332,7 +332,7 @@ async def get_entity_image(name: str, role: str = "Character", regenerate: bool 
         if img_path:
             state.entity_images[name] = img_path
             # Add timestamp to URL to bust browser cache
-            return {"image_url": f"/api/assets/entities/{os.path.basename(img_path)}?t={int(time.time())}"}
+            return {"image_url": f"{img_path}?t={int(time.time())}"}
         else:
             return {"image_url": None}
     except Exception as e:

@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: book2vision
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn src.server:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.0
+      # All API keys and secrets should be added to the Render dashboard
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: DEAPI_API_KEY
+        sync: false
+      - key: POLLINATIONS_API_KEY
+        sync: false

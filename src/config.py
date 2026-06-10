@@ -24,6 +24,20 @@ PODCAST_API_KEYS = [k.strip() for k in os.getenv("PODCAST_API_KEY", "").split(",
 GEMINI_API_KEY = GEMINI_API_KEYS[0] if GEMINI_API_KEYS else None
 PODCAST_API_KEY = PODCAST_API_KEYS[0] if PODCAST_API_KEYS else None
 
+# Supabase Config
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+supabase_client = None
+if SUPABASE_URL and SUPABASE_KEY:
+    try:
+        from supabase import create_client, Client
+        supabase_client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        print(f" Supabase client initialized to {SUPABASE_URL}")
+    except Exception as e:
+        print(f" Failed to initialize Supabase client: {e}")
+
 def get_allocated_keys(purpose="general"):
     """
     Returns a prioritized list of keys for a specific purpose.

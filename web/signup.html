@@ -557,8 +557,12 @@
             }
 
             .video-panel {
-                height: 35vh;
-                min-height: 250px;
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                z-index: 0;
             }
 
             .form-panel {
@@ -566,28 +570,22 @@
                 min-width: unset;
                 flex: 1;
                 padding: 2rem 1.5rem;
+                z-index: 10;
+                min-height: 100vh;
             }
 
             .login-card {
                 max-width: 440px;
                 padding: 2rem 1.75rem;
+                background: rgba(16, 16, 20, 0.7);
             }
 
             .model-overlay {
-                bottom: 1.5rem;
-                left: 1.5rem;
-            }
-
-            .model-overlay .logo-text {
-                font-size: 1.6rem;
+                display: none;
             }
         }
 
         @media (max-width: 480px) {
-            .video-panel {
-                height: 28vh;
-            }
-
             .login-card {
                 padding: 1.75rem 1.25rem;
                 border-radius: var(--radius-md);
@@ -638,7 +636,7 @@
 
             <div class="model-overlay">
                 <div class="logo-text">Book2Vision</div>
-                <div class="tagline">Immersive reading, reimagined.</div>
+                <div class="tagline">Listen, watch, and read.</div>
             </div>
         </div>
 
@@ -646,9 +644,8 @@
         <div class="form-panel">
             <div class="login-card">
                 <div class="login-header">
-                    <span class="badge">Join Us</span>
-                    <h1>Create Account</h1>
-                    <p>Start your immersive reading journey today.</p>
+                    <h1>Sign Up</h1>
+                    <p>Create an account to build your library.</p>
                 </div>
 
                 <form class="login-form" id="signupForm" onsubmit="handleSignup(event)">

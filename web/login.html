@@ -436,6 +436,33 @@
             left: 100%;
         }
 
+        /* Guest Button */
+        .btn-guest {
+            width: 100%;
+            padding: 0.9rem;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: var(--radius-round);
+            font-family: 'Outfit', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-muted);
+            margin-top: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .btn-guest:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-main);
+            border-color: rgba(255, 255, 255, 0.25);
+            transform: translateY(-1px);
+        }
+
         /* Divider */
         .divider {
             display: flex;
@@ -557,8 +584,12 @@
             }
 
             .video-panel {
-                height: 35vh;
-                min-height: 250px;
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                z-index: 0;
             }
 
             .form-panel {
@@ -566,28 +597,24 @@
                 min-width: unset;
                 flex: 1;
                 padding: 2rem 1.5rem;
+                z-index: 10;
+                min-height: 100vh;
             }
 
             .login-card {
                 max-width: 440px;
                 padding: 2rem 1.75rem;
+                background: rgba(16, 16, 20, 0.7);
+                /* Slightly darker on mobile to pop against video */
             }
 
             .model-overlay {
-                bottom: 1.5rem;
-                left: 1.5rem;
-            }
-
-            .model-overlay .logo-text {
-                font-size: 1.6rem;
+                display: none;
+                /* Hide overlay on mobile for cleaner look */
             }
         }
 
         @media (max-width: 480px) {
-            .video-panel {
-                height: 28vh;
-            }
-
             .login-card {
                 padding: 1.75rem 1.25rem;
                 border-radius: var(--radius-md);
@@ -638,7 +665,7 @@
 
             <div class="model-overlay">
                 <div class="logo-text">Book2Vision</div>
-                <div class="tagline">Immersive reading, reimagined.</div>
+                <div class="tagline">Listen, watch, and read.</div>
             </div>
         </div>
 
@@ -646,9 +673,8 @@
         <div class="form-panel">
             <div class="login-card">
                 <div class="login-header">
-                    <span class="badge">Welcome Back</span>
                     <h1>Sign In</h1>
-                    <p>Enter your credentials to continue your journey.</p>
+                    <p>Enter your email and password to access your library.</p>
                 </div>
 
                 <form class="login-form" id="loginForm" onsubmit="handleLogin(event)">
@@ -706,6 +732,14 @@
                             GitHub
                         </button>
                     </div>
+
+                    <button type="button" class="btn-guest" onclick="signInAsGuest()">
+                        Continue as Guest
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round" style="width: 16px; height: 16px;">
+                            <path d="M5 12h14M12 5l7 7-7 7" />
+                        </svg>
+                    </button>
 
                     <div class="signup-link">
                         Don't have an account? <a href="signup.html">Create one</a>

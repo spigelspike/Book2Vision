@@ -13,6 +13,7 @@ from src.state import state, UPLOAD_DIR, MAX_FILE_SIZE_MB, ALLOWED_EXTENSIONS, A
 from src.ingestion import ingest_book
 from src.analysis import semantic_analysis
 from src.visuals import generate_entity_image, generate_poster_with_deapi
+from src.storage import upload_file_to_supabase
 
 router = APIRouter(prefix="/api", tags=["upload"])
 
@@ -40,6 +41,9 @@ async def upload_book(file: UploadFile = File(...), background_tasks: Background
         
         if not safe_filename:
             safe_filename = f"upload_{int(time.time())}{file_ext}"
+            
+        import uuid
+        safe_filename = f"{uuid.uuid4().hex[:8]}_{safe_filename}"
         
         file_path = os.path.join(UPLOAD_DIR, safe_filename)
         
@@ -73,6 +77,15 @@ async def upload_book(file: UploadFile = File(...), background_tasks: Background
         # Ingest
         try:
             ingestion_result = await ingest_book(file_path)
+            
+            # Clean up title if it accidentally pulled the UUID-prefixed filename
+            import re
+            raw_title = str(ingestion_result.get("title", ""))
+            if re.match(r"^[0-9a-f]{8}[\s_]", raw_title, re.IGNORECASE):
+                clean_title = raw_title[9:] # remove the 8-char UUID and space/underscore
+                clean_title = clean_title.replace(".pdf", "").replace(".epub", "").replace(".txt", "")
+                clean_title = clean_title.replace("_", " ").title()
+                ingestion_result["title"] = clean_title
             ingestion_result["filename"] = safe_filename  # Use sanitized filename
         except Exception as e:
              print(f"Ingestion failed: {e}")
@@ -105,11 +118,16 @@ async def upload_book(file: UploadFile = File(...), background_tasks: Background
             analysis = state.analysis_result
 
         
+        # Upload to Supabase 'books' bucket
+        remote_url = upload_file_to_supabase("books", file_path, safe_filename)
+        # Fallback to local filename if upload fails
+        final_filename = remote_url if remote_url else safe_filename
+
         # Add to library FIRST (so we have book_id)
         new_book = library_manager.add_book({
             "title": ingestion_result.get("title", "Unknown"),
             "author": ingestion_result.get("author", "Unknown"),
-            "filename": safe_filename
+            "filename": final_filename
         }, full_text=state.full_text)
         state.book_id = new_book["id"]
         
@@ -142,8 +160,21 @@ async def upload_book(file: UploadFile = File(...), background_tasks: Background
                     if title == "Extracted PDF" or title == "Book":
                          gen_title = safe_filename.replace("_", " ").replace(".pdf", "").replace(".epub", "")
                     
+                    print(f"--- Starting cover generation for: {gen_title}")
+                    cover_path = await generate_poster_with_deapi(
+                        gen_title, author, visuals_dir, 
+                        theme=theme, characters=characters
+                    )
+                    
+                    if cover_path and state.book_id:
+                        db_cover_path = cover_path
+                        if not cover_path.startswith("http"):
+                            db_cover_path = os.path.relpath(cover_path, UPLOAD_DIR).replace("\\", "/")
+                        library_manager.update_book_thumbnail(state.book_id, db_cover_path)
+                        print(f"SUCCESS: Auto-generated cover saved and linked to library: {db_cover_path}")
+
                     print(f"--- Generating top entities for: {gen_title}")
-                    # Generate top 3 entities first (Sequential: Entities -> Cover)
+                    # Generate top 3 entities after cover
                     top_entities = characters[:3] if characters else []
                     entity_dir = os.path.join(UPLOAD_DIR, "entities")
                     os.makedirs(entity_dir, exist_ok=True)
@@ -174,17 +205,8 @@ async def upload_book(file: UploadFile = File(...), background_tasks: Background
                             await asyncio.sleep(1) # Add small breather to avoid Pollinations 429
                         except Exception as e:
                             print(f"WARNING: Failed to auto-generate entity {name}: {e}")
-
-                    print(f"--- Starting cover generation for: {gen_title}")
-                    cover_path = await generate_poster_with_deapi(
-                        gen_title, author, visuals_dir, 
-                        theme=theme, characters=characters
-                    )
                     
-                    if cover_path and state.book_id:
-                        filename = os.path.basename(cover_path)
-                        library_manager.update_book_thumbnail(state.book_id, f"visuals/{filename}")
-                        print(f"SUCCESS: Auto-generated cover saved and linked to library: {cover_path}")
+
                 except Exception as e:
                     print(f"WARNING: Auto cover generation failed: {e}")
                     traceback.print_exc()
@@ -194,7 +216,7 @@ async def upload_book(file: UploadFile = File(...), background_tasks: Background
         
         return {
             "message": "Upload successful",
-            "filename": safe_filename,
+            "filename": final_filename,
             "analysis": analysis,
             "title": ingestion_result.get("title", "Unknown"),
             "author": ingestion_result.get("author", "Unknown")

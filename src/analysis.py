@@ -36,6 +36,8 @@ async def semantic_analysis(text):
             if result and result.get("entities"):
                 # Enforce minimum scenes
                 ensure_minimum_scenes(result)
+                # Build visual anchors and infer scene-character mappings
+                post_process_analysis(result)
                 print(f"SUCCESS: Gemini analysis succeeded using key {i+1}. Found {len(result.get('entities', []))} entities.")
                 return result
                 
@@ -59,6 +61,7 @@ async def semantic_analysis(text):
                             result = await semantic_analysis_with_llm(text, key)
                             if result and result.get("entities"):
                                 ensure_minimum_scenes(result)
+                                post_process_analysis(result)
                                 return result
                         except: pass # If retry fails, move to circuit breaker
                 
@@ -74,6 +77,7 @@ async def semantic_analysis(text):
             result = await semantic_analysis_with_deepseek(text, OPENROUTER_API_KEY)
             if result and result.get("entities"):
                 ensure_minimum_scenes(result)
+                post_process_analysis(result)
                 return result
         except Exception as e:
             print(f"  -> DeepSeek analysis failed: {e}")
@@ -102,14 +106,14 @@ async def semantic_analysis(text):
     # Count frequency
     counts = Counter(candidates)
     
-    # Entity format: [name, role, visual_description]
-    # Empty description for fallback since regex can't infer appearance
+    # Entity format: [name, role, visual_description, outfit, signature_prop, visual_anchor]
+    # Descriptions are blank for regex fallback — regex can't infer appearance
     top_entities = [
-        [name, "Character", ""]  # description blank - not available from regex
+        [name, "Character", "", "", "none", f"{name}, a character in the story"]
         for name, count in counts.most_common(5)
     ]
     
-    return {
+    fallback_result = {
         "entities": top_entities,
         "keywords": [],
         "scenes": [
@@ -119,7 +123,8 @@ async def semantic_analysis(text):
                 "narrator_intro": "Our story starts here.",
                 "emotion": "anticipation",
                 "mood": "introductory",
-                "environment": "opening scene"
+                "environment": "opening scene",
+                "characters_in_scene": []
             },
             {
                 "description": "A key event occurs that sets the plot in motion.",
@@ -127,7 +132,8 @@ async def semantic_analysis(text):
                 "narrator_intro": "Then, everything changed.",
                 "emotion": "surprise",
                 "mood": "dynamic",
-                "environment": "key location"
+                "environment": "key location",
+                "characters_in_scene": []
             },
             {
                 "description": "The tension rises as the characters face a challenge.",
@@ -135,7 +141,8 @@ async def semantic_analysis(text):
                 "narrator_intro": "The stakes were getting higher.",
                 "emotion": "tension",
                 "mood": "intense",
-                "environment": "challenging setting"
+                "environment": "challenging setting",
+                "characters_in_scene": []
             },
             {
                 "description": "The story reaches its conclusion or a dramatic moment.",
@@ -143,10 +150,13 @@ async def semantic_analysis(text):
                 "narrator_intro": "Finally, the moment of truth.",
                 "emotion": "dramatic",
                 "mood": "climactic",
-                "environment": "final setting"
+                "environment": "final setting",
+                "characters_in_scene": []
             }
         ]
     }
+    post_process_analysis(fallback_result)
+    return fallback_result
 
 from src.prompts import SEMANTIC_ANALYSIS_PROMPT
 
@@ -274,7 +284,106 @@ def ensure_minimum_scenes(analysis_result, min_scenes=4):
                 "narrator_intro": "Moving forward...",
                 "emotion": "neutral",
                 "mood": "atmospheric",
-                "environment": "in the story setting"
+                "environment": "in the story setting",
+                "characters_in_scene": []
             })
         analysis_result["scenes"] = scenes
+    return analysis_result
+
+
+def build_visual_anchors(entities: list) -> dict:
+    """
+    Builds compact, image-gen-optimized visual anchor strings per character.
+    Prefers the 6th field (visual_anchor) extracted by the LLM if available,
+    otherwise assembles one from fields 0-4.
+    Returns: {character_name: anchor_string}
+    """
+    anchors = {}
+    for entity in entities:
+        if isinstance(entity, (list, tuple)):
+            name = entity[0] if len(entity) > 0 else ""
+            if not name:
+                continue
+
+            # Prefer the dedicated visual_anchor field (index 5) if present and non-trivial
+            if len(entity) >= 6 and entity[5] and len(str(entity[5])) > 15:
+                anchors[name] = str(entity[5])
+            else:
+                # Assemble from available fields
+                physical = str(entity[2]) if len(entity) > 2 else ""
+                outfit   = str(entity[3]) if len(entity) > 3 else ""
+                prop     = str(entity[4]) if len(entity) > 4 else ""
+
+                parts = [name]
+                if physical:
+                    parts.append(physical[:150])
+                if outfit:
+                    parts.append(f"wearing {outfit[:100]}")
+                if prop and prop.lower() not in ["none", "n/a", ""]:
+                    parts.append(f"holding {prop[:80]}")
+
+                anchors[name] = ", ".join(parts)
+
+        elif isinstance(entity, dict):
+            name = entity.get("name", "")
+            if not name:
+                continue
+
+            anchor = entity.get("visual_anchor", "")
+            if anchor and len(anchor) > 15:
+                anchors[name] = anchor
+            else:
+                physical = entity.get("visual_description", "")
+                outfit   = entity.get("outfit", "")
+                prop     = entity.get("signature_prop", "")
+
+                parts = [name]
+                if physical:
+                    parts.append(physical[:150])
+                if outfit:
+                    parts.append(f"wearing {outfit[:100]}")
+                if prop and prop.lower() not in ["none", "n/a", ""]:
+                    parts.append(f"holding {prop[:80]}")
+
+                anchors[name] = ", ".join(parts)
+
+    return anchors
+
+
+def post_process_analysis(analysis_result: dict) -> dict:
+    """
+    Post-processes the analysis result to:
+    1. Build and store visual anchor strings per character (used by visuals.py).
+    2. Warn about vague character descriptions that will hurt image accuracy.
+    3. Infer `characters_in_scene` for any scenes the LLM left that field out of.
+    """
+    entities = analysis_result.get("entities", [])
+    scenes   = analysis_result.get("scenes", [])
+
+    # 1. Build and attach visual anchors
+    visual_anchors = build_visual_anchors(entities)
+    analysis_result["visual_anchors"] = visual_anchors
+    print(f"  -> Built {len(visual_anchors)} visual anchors: {list(visual_anchors.keys())}")
+
+    # 2. Validate description quality — warn on suspiciously short descriptions
+    for entity in entities:
+        if isinstance(entity, (list, tuple)) and len(entity) >= 3:
+            name, physical = entity[0], str(entity[2])
+            if len(physical) < 30:
+                print(f"  ⚠ WARNING: '{name}' has a very vague physical description "
+                      f"({len(physical)} chars: '{physical}'). Image accuracy will suffer.")
+
+    # 3. Infer characters_in_scene for scenes that are missing it
+    all_names = list(visual_anchors.keys())
+    for i, scene in enumerate(scenes):
+        if not isinstance(scene, dict):
+            continue
+        if "characters_in_scene" not in scene:
+            # Scan the scene description + excerpt for character names
+            search_text = scene.get("description", "") + " " + scene.get("excerpt", "")
+            mentioned = [name for name in all_names if name and name in search_text]
+            scene["characters_in_scene"] = mentioned
+            if mentioned:
+                print(f"  -> Scene {i+1}: inferred characters_in_scene = {mentioned}")
+
     return analysis_result

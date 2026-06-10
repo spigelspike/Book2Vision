@@ -6,6 +6,7 @@ from typing import List, Dict, Optional
 from pathlib import Path
 from sqlmodel import Session, select
 from src.database import engine, Book, Analysis, Image, init_db
+from src.storage import delete_file_from_supabase
 
 class LibraryManager:
     """
@@ -277,14 +278,21 @@ class LibraryManager:
             if not book:
                 return False
             
-            # Delete file
-            file_path = os.path.join(self.upload_dir, book.filename)
-            if os.path.exists(file_path):
-                try:
-                    os.remove(file_path)
-                    print(f"Deleted file: {file_path}")
-                except Exception as e:
-                    print(f"Error deleting file {file_path}: {e}")
+            # Delete file (check if it's a local file or a supabase remote)
+            if book.filename:
+                if book.filename.startswith("http"):
+                    # Extract filename from URL
+                    remote_filename = book.filename.split("/")[-1]
+                    # PDF/Epub goes to books bucket
+                    delete_file_from_supabase("books", remote_filename)
+                else:
+                    file_path = os.path.join(self.upload_dir, book.filename)
+                    if os.path.exists(file_path):
+                        try:
+                            os.remove(file_path)
+                            print(f"Deleted local file: {file_path}")
+                        except Exception as e:
+                            print(f"Error deleting local file {file_path}: {e}")
             
             # Cascade delete is handled by SQLModel/SQLAlchemy if configured, 
             # but explicit delete is safer for now without cascade setup
@@ -299,6 +307,13 @@ class LibraryManager:
             for img in images:
                 session.delete(img)
                 
+            # Delete chapters
+            from src.database import Chapter
+            statement = select(Chapter).where(Chapter.book_id == book_id)
+            chapters = session.exec(statement).all()
+            for ch in chapters:
+                session.delete(ch)
+
             session.delete(book)
             session.commit()
             return True
@@ -385,7 +400,7 @@ class LibraryManager:
             return
 
         with Session(engine) as session:
-            existing_filenames = {b.filename for b in session.exec(select(Book)).all()}
+            existing_filenames = {os.path.basename(b.filename) for b in session.exec(select(Book)).all() if b.filename}
             
             ALLOWED_EXTENSIONS = {".pdf", ".epub", ".txt"}
             
@@ -397,8 +412,15 @@ class LibraryManager:
                     if ext in ALLOWED_EXTENSIONS and filename not in existing_filenames:
                         # Found a new file!
                         print(f"Found unlisted book: {filename}")
+                        import re
+                        clean_title = filename
+                        if re.match(r"^[0-9a-f]{8}[\s_]", filename, re.IGNORECASE):
+                            clean_title = filename[9:]
+                        clean_title = clean_title.replace(".pdf", "").replace(".epub", "").replace(".txt", "")
+                        clean_title = clean_title.replace("_", " ").title()
+                        
                         new_book = Book(
-                            title=filename,
+                            title=clean_title,
                             author="Unknown",
                             filename=filename,
                             full_text=""
@@ -412,6 +434,9 @@ class LibraryManager:
 
     def _get_file_size(self, filename: str) -> int:
         if not filename: return 0
+        if filename.startswith("http"):
+            # Can't easily get size of remote file without a HEAD request, just return 0 for now
+            return 0
         try:
             return os.path.getsize(os.path.join(self.upload_dir, filename))
         except:

@@ -66,11 +66,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "img-src 'self' https://pollinations.ai https://image.pollinations.ai https://ui-avatars.com data:; "
+            "img-src 'self' https://pollinations.ai https://image.pollinations.ai https://ui-avatars.com https://*.supabase.co https://*.supabase.in data: blob:; "
+            "media-src 'self' blob: https://*.supabase.co https://*.supabase.in; "
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
             "font-src 'self' https://fonts.gstatic.com; "
             "script-src 'self' 'unsafe-inline'; "
-            "connect-src 'self'"
+            "connect-src 'self' wss://*.supabase.co https://*.supabase.co https://*.supabase.in"
         )
         return response
 

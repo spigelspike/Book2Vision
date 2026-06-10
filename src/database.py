@@ -3,11 +3,18 @@ from sqlmodel import Field, SQLModel, create_engine, Session, Relationship
 from datetime import datetime
 import os
 
-# Database URL
-DATABASE_URL = "sqlite:///./library.db"
+from src.config import DATABASE_URL
+
+# Fallback to local sqlite if DATABASE_URL is not set
+_db_url = DATABASE_URL if DATABASE_URL else "sqlite:///./library.db"
 
 # Engine
-engine = create_engine(DATABASE_URL, echo=False)
+if _db_url.startswith("sqlite"):
+    engine = create_engine(_db_url, echo=False)
+else:
+    # Disable connection pooling for serverless Postgres
+    # (Supabase uses pgbouncer so we can just use normal connection)
+    engine = create_engine(_db_url, echo=False)
 
 class Book(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

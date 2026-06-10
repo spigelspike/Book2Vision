@@ -343,6 +343,8 @@ Analyze the provided book text and extract structured data for multimedia adapta
 
 ANALYSIS REQUIREMENTS:
 
+1. OVERVIEW SUMMARY
+   • Provide a 2-3 sentence cinematic summary of the entire text provided.
 
 2. ENTITIES (CHARACTERS ONLY)
    • Identify 3-10 main characters (sentient beings only)
@@ -356,23 +358,23 @@ ANALYSIS REQUIREMENTS:
      - For fantasy: "dark wizard", "elven warrior", "dragon rider"
      - For sci-fi: "starship captain", "cyborg bounty hunter", "alien diplomat"
      - Generic labels like "protagonist" are acceptable ONLY if no genre-specific role fits
-   • Visual Description: Physical traits for illustration (age, build, hair, distinctive features).
+   • Visual Description: Ultra-specific physical traits for illustration. DO NOT use generic terms like "dark hair" or "tall". Instead, use highly specific details like "jet-black wavy hair cut to the jaw" or "6'4 slender frame with sharp cheekbones".
      IMPORTANT: If the character has a special/iconic appearance (superhero suit, magical aura, 
      alien features, cybernetic enhancements, transformation, armor, wings, etc.), describe THAT 
      form as the primary visual. Depict the character in their most recognizable, iconic state.
-     Example: Spider-Man should be described in his red-and-blue suit, NOT as "young brown-haired man".
    • Outfit: Describe their most iconic/recognizable outfit or costume, including colors and distinctive 
      design elements. If they have a superhero costume, describe that. If they wear armor, describe 
      the armor. Focus on the version readers would instantly recognize.
    • Signature Prop: Key object, weapon, or power visual they are associated with ("none" if not applicable)
      Examples: "glowing energy shield", "vibranium shield", "lightsaber", "magic staff", "web shooters"
+   • Visual Anchor: A compact, 1-2 sentence comma-separated string combining the character's name, their precise physical description, their outfit, and their prop. This will be injected directly into image prompts.
    
-   Format: ["Name", "Role", "Visual Description", "Outfit", "Signature Prop"]
+   Format: ["Name", "Role", "Visual Description", "Outfit", "Signature Prop", "Visual Anchor"]
    
    Example: ["Peter Parker", "superhero protagonist", "lean athletic build, masked face with large white eye lenses, dynamic spider-themed hero", 
-             "iconic red and blue spandex suit with black web pattern, spider emblem on chest", "mechanical web shooters"]
+             "iconic red and blue spandex suit with black web pattern, spider emblem on chest", "mechanical web shooters", "Peter Parker, lean athletic build, wearing iconic red and blue spandex suit with black web pattern, holding mechanical web shooters"]
    Example: ["Gandalf", "wizard mentor", "tall elderly man, long white beard, wise piercing eyes, weathered face",
-             "flowing grey robes, pointed wizard hat, heavy traveling cloak", "gnarled wooden staff with glowing crystal"]
+             "flowing grey robes, pointed wizard hat, heavy traveling cloak", "gnarled wooden staff with glowing crystal", "Gandalf, tall elderly man with long white beard and weathered face, wearing flowing grey robes and pointed wizard hat, holding gnarled wooden staff with glowing crystal"]
 
 3. THEMES (KEYWORDS)
    • Extract 5-10 core thematic elements
@@ -386,15 +388,16 @@ ANALYSIS REQUIREMENTS:
    • Ensure comprehensive coverage: beginning, rising action, climax, resolution
    • Balance action scenes with emotional/character moments
    
-   For each scene:
-   • description: Visual, cinematic description suitable for image generation
-     (What do we SEE? Who is present? What's happening? Where?)
-   • excerpt: 2-4 sentences from the actual book text for this scene
-   • narrator_intro: Single sentence to introduce the scene in narration
-     (e.g., "The story begins on a rain-soaked evening...")
-   • emotion: Dominant emotional tone (fear, joy, tension, sorrow, triumph, etc.)
-   • mood: Visual atmosphere (dark/ominous, bright/hopeful, gritty/realistic, ethereal/dreamlike)
-   • environment: Specific setting details (time of day, weather, location type, era, visual elements)
+    For each scene:
+    • description: Visual, cinematic description suitable for image generation
+      (What do we SEE? Who is present? What's happening? Where?)
+    • excerpt: 2-4 sentences from the actual book text for this scene
+    • narrator_intro: Single sentence to introduce the scene in narration
+      (e.g., "The story begins on a rain-soaked evening...")
+    • emotion: Dominant emotional tone (fear, joy, tension, sorrow, triumph, etc.)
+    • mood: Visual atmosphere (dark/ominous, bright/hopeful, gritty/realistic, ethereal/dreamlike)
+    • environment: Specific setting details (time of day, weather, location type, era, visual elements)
+    • characters_in_scene: A list of exact character names that are physically present in this specific scene. DO NOT include characters who are just mentioned or not physically there.
 
 OUTPUT FORMAT (CRITICAL):
 
@@ -407,10 +410,11 @@ OUTPUT FORMAT (CRITICAL):
 
 JSON SCHEMA:
 
-}}
+{{
+    "summary": "cinematic summary...",
     "entities": [
-        ["Character Name", "role", "physical description", "clothing details", "signature item or none"],
-        ["Character Name 2", "role", "physical description", "clothing details", "signature item or none"]
+        ["Character Name", "role", "highly specific physical description", "clothing details", "signature item or none", "visual anchor string"],
+        ["Character Name 2", "role", "highly specific physical description", "clothing details", "signature item or none", "visual anchor string"]
     ],
     "keywords": [
         "theme1",
@@ -426,7 +430,8 @@ JSON SCHEMA:
             "narrator_intro": "A single sentence introducing this scene for audio narration.",
             "emotion": "primary emotional tone",
             "mood": "visual atmosphere description",
-            "environment": "specific setting details including time, place, weather, lighting"
+            "environment": "specific setting details including time, place, weather, lighting",
+            "characters_in_scene": ["Character Name 1"]
         }},
         {{
             "description": "Scene 2 visual description...",
@@ -434,7 +439,8 @@ JSON SCHEMA:
             "narrator_intro": "Scene 2 narrator intro...",
             "emotion": "primary emotional tone",
             "mood": "visual atmosphere description",
-            "environment": "specific setting details"
+            "environment": "specific setting details",
+            "characters_in_scene": ["Character Name 1", "Character Name 2"]
         }}
     ]
 }}

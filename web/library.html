@@ -348,7 +348,8 @@
 
         @media (max-width: 768px) {
             .library-grid {
-                grid-template-columns: 1fr;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 1.25rem;
             }
 
             .library-header {
@@ -379,7 +380,7 @@
         <div class="nav-links">
             <a href="modes.html">Home</a>
             <a href="library.html" class="active" aria-current="page">Library</a>
-            <a href="about.html">About us</a>
+
         </div>
     </nav>
 

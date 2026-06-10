@@ -1,3 +1,13 @@
+
+function escapeHTML(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
 // ============================================
 // CONFIGURATION & STATE
 // ============================================
@@ -147,7 +157,7 @@ function setupEventListeners() {
             showAudioDock();
             toggleAudio();
         } else {
-            openAudioPicker('audiobook');
+            generateAudio();
         }
     });
     if (btnPlayPause) btnPlayPause.addEventListener('click', toggleAudio);
@@ -159,9 +169,9 @@ function setupEventListeners() {
         });
         audioPlayer.addEventListener('ended', () => {
             isPlaying = false;
-            btnPlayPause.textContent = "▶";
+            btnPlayPause.innerHTML = "<i data-lucide='play' class='icon-filled'></i>";
             const miniBtn = document.getElementById('btn-mini-play-audio');
-            if (miniBtn) miniBtn.querySelector('.play-icon').textContent = "▶";
+            if (miniBtn) miniBtn.querySelector('.play-icon').innerHTML = "<i data-lucide='play' class='icon-filled'></i>";
             document.querySelector('.audio-player-ui').classList.remove('playing');
         });
     }
@@ -195,7 +205,7 @@ function setupEventListeners() {
         if (document.getElementById('podcast-player-ui').classList.contains('hidden') === false && document.getElementById('podcast-player-ui').style.display !== 'none') {
             // Already showing, do nothing or just play
         } else {
-            openAudioPicker('podcast');
+            generatePodcast();
         }
     });
 
@@ -246,10 +256,10 @@ function setupVideoControls() {
     btnPlay.onclick = () => {
         if (video.paused) {
             video.play();
-            btnPlay.textContent = "⏸";
+            btnPlay.innerHTML = "<i data-lucide='pause' class='icon-filled'></i>";
         } else {
             video.pause();
-            btnPlay.textContent = "▶";
+            btnPlay.innerHTML = "<i data-lucide='play' class='icon-filled'></i>";
         }
     };
 
@@ -376,20 +386,23 @@ function loadDashboard(data, filename) {
     fetchChapters();
 
     // Fetch full story text (background)
-    // Fetch full story text (background)
     fetchStoryContent();
-
-    // Inject Immersive Mode Button - REMOVED
-    // injectImmersiveButton();
 
     // Check for existing podcast
     if (data.analysis.podcast && data.analysis.podcast.length > 0) {
         podcastPlaylist = data.analysis.podcast;
-        btnPodcast.innerHTML = '<span class="icon">▶</span> Play Podcast';
+        btnPodcast.innerHTML = '<i data-lucide="mic"></i> Play Podcast';
+        updateMiniPlayerStatus('podcast', 'Ready to play');
         showToast("Podcast loaded from library!", "success");
     } else {
         podcastPlaylist = [];
-        btnPodcast.innerHTML = '<span class="icon">🎙️</span> Generate Podcast';
+        btnPodcast.innerHTML = '<i data-lucide="mic"></i> Generate Podcast';
+        updateMiniPlayerStatus('podcast', 'No podcast generated');
+    }
+    
+    // Ensure icons are rendered
+    if (window.lucide) {
+        window.lucide.createIcons();
     }
 }
 
@@ -437,7 +450,7 @@ function renderChapters(chapters) {
 
         tab.innerHTML = `
             <span class="nb-tab-index">${ch.index + 1}</span>
-            <span class="nb-tab-title">${ch.title}</span>
+            <span class="nb-tab-title">${escapeHTML(ch.title)}</span>
             <button class="nb-tab-audio-btn" onclick="generateChapterAudio(event, '${ch.id}')" title="Generate Audio">
                 ${ch.has_audio ? '▶' : '🎙️'}
             </button>
@@ -447,7 +460,7 @@ function renderChapters(chapters) {
             // Logic to scroll to chapter or load chapter context if needed
             document.querySelectorAll('.nb-tab').forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
-            showToast(`Selected: ${ch.title}`, "info");
+            showToast(`Selected: ${escapeHTML(ch.title)}`, "info");
         };
 
         tabsContainer.appendChild(tab);
@@ -458,8 +471,8 @@ async function generateChapterAudio(event, chapterId) {
     if (event) event.stopPropagation();
 
     // Check if already has audio (mock logic for now, in real app we'd check ch.has_audio)
-    // For now, we always open the picker for the chapter
-    openAudioPicker('audiobook', chapterId);
+    // For now, we always directly generate the audio for the chapter
+    generateAudio(chapterId);
 }
 
 window.generateChapterAudio = generateChapterAudio;
@@ -526,7 +539,7 @@ function renderEntities(entities) {
         card.innerHTML = `
             <div class="source-icon" id="${imgId}-wrap"><img src="https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=random" class="entity-avatar" id="${imgId}" style="width:36px;height:36px;border-radius:var(--radius-sm);object-fit:cover;"></div>
             <div class="source-meta">
-                <h4>${name}</h4>
+                <h4>${escapeHTML(name)}</h4>
                 <p>${role}</p>
             </div>
             <span class="source-check">✓</span>
@@ -608,7 +621,7 @@ async function fetchEntityImage(name, imgId) {
                 tooltipImg.src = data.image_url;
             }
         } else {
-            console.warn(`Entity image for ${name} returned null URL.`);
+            console.warn(`Entity image for ${escapeHTML(name)} returned null URL.`);
         }
     } catch (e) {
         // Silent fail for entity images
@@ -712,9 +725,9 @@ function toggleAudio() {
         if (playPromise !== undefined) {
             playPromise.then(() => {
                 isPlaying = true;
-                btnPlayPause.textContent = "⏸";
+                btnPlayPause.innerHTML = "<i data-lucide='pause' class='icon-filled'></i>";
                 const miniBtn = document.getElementById('btn-mini-play-audio');
-                if (miniBtn) miniBtn.querySelector('.play-icon').textContent = "⏸";
+                if (miniBtn) miniBtn.querySelector('.play-icon').innerHTML = "<i data-lucide='pause' class='icon-filled'></i>";
                 if (ui) ui.classList.add('playing');
             }).catch(e => {
                 if (e.name === 'AbortError') {
@@ -733,9 +746,9 @@ function toggleAudio() {
     } else {
         audioPlayer.pause();
         isPlaying = false;
-        btnPlayPause.textContent = "▶";
+        btnPlayPause.innerHTML = "<i data-lucide='play' class='icon-filled'></i>";
         const miniBtn = document.getElementById('btn-mini-play-audio');
-        if (miniBtn) miniBtn.querySelector('.play-icon').textContent = "▶";
+        if (miniBtn) miniBtn.querySelector('.play-icon').innerHTML = "<i data-lucide='play' class='icon-filled'></i>";
         if (ui) ui.classList.remove('playing');
         isTogglingAudio = false;
     }
@@ -807,7 +820,7 @@ async function uploadVoiceSample(event) {
             throw new Error(err.detail || "Upload failed");
         }
 
-        btn.textContent = "✅ Sample Uploaded";
+        btn.innerHTML = "<i data-lucide='check-circle' style='width: 1em; height: 1em;'></i> Sample Uploaded";
         btn.classList.add("btn-success");
         showToast("Voice sample uploaded successfully!", "success");
         setTimeout(() => {
@@ -966,7 +979,7 @@ async function generateVisuals(styleOverride = null) {
     try {
         console.log("Sending request to /api/generate/visuals...");
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+        const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s timeout
 
         const res = await fetch(`${API_BASE}/generate/visuals`, {
             method: 'POST',
@@ -1149,6 +1162,26 @@ function prevImage() {
     }
 }
 
+let carouselAutoPlayTimer = null;
+let isCarouselPlaying = false;
+
+function toggleCarouselPlay() {
+    const playBtn = document.getElementById('btn-carousel-play');
+    if (!playBtn) return;
+    
+    if (isCarouselPlaying) {
+        clearInterval(carouselAutoPlayTimer);
+        isCarouselPlaying = false;
+        playBtn.textContent = "▶";
+    } else {
+        carouselAutoPlayTimer = setInterval(() => {
+            nextImage();
+        }, 3000);
+        isCarouselPlaying = true;
+        playBtn.textContent = "⏸";
+    }
+}
+
 // Override injectImages to init carousel
 const originalInjectImages = injectImages;
 injectImages = function (images, isAsync = false) {
@@ -1191,9 +1224,24 @@ async function generatePodcast() {
         const ctrl = document.querySelector('.nb-dock-center-controls');
         if (ctrl) ctrl.classList.add('hidden');
 
-        playPodcastSequence(0);
+        if (currentPodcastAudio && !currentPodcastAudio.paused) {
+            // If already playing, just pause it
+            currentPodcastAudio.pause();
+            const miniBtn = document.getElementById('btn-mini-play-podcast');
+            if (miniBtn) miniBtn.querySelector('.play-icon').innerHTML = "<i data-lucide='play' class='icon-filled'></i>";
+        } else if (currentPodcastAudio && currentPodcastAudio.paused) {
+            // Resume if paused
+            currentPodcastAudio.play();
+            const miniBtn = document.getElementById('btn-mini-play-podcast');
+            if (miniBtn) miniBtn.querySelector('.play-icon').innerHTML = "<i data-lucide='pause' class='icon-filled'></i>";
+        } else {
+            // Start sequence if not initialized
+            playPodcastSequence();
+        }
+
         btnPodcast.disabled = false;
         btnPodcast.innerHTML = originalText;
+        if (window.lucide) window.lucide.createIcons();
         return;
     }
 
@@ -1220,7 +1268,14 @@ async function generatePodcast() {
             method: 'POST'
         });
 
-        if (!res.ok) throw new Error("Podcast generation failed to start");
+        if (!res.ok) {
+            let errMsg = "Podcast generation failed to start";
+            try {
+                const errData = await res.json();
+                if (errData.detail) errMsg = errData.detail;
+            } catch (e) {}
+            throw new Error(errMsg);
+        }
 
         const data = await res.json();
 
@@ -1231,7 +1286,7 @@ async function generatePodcast() {
             podcastPlaylist = data.playlist;
             updateMiniPlayerStatus('podcast', 'Ready to play');
             podcastTranscript.textContent = "Recording audio...";
-            playPodcastSequence(0);
+            playPodcastSequence();
             btnPodcast.innerHTML = originalText;
             btnPodcast.disabled = false;
         }
@@ -1261,12 +1316,12 @@ async function pollPodcastStatus(originalText) {
                 podcastPlaylist = data.playlist;
                 updateMiniPlayerStatus('podcast', 'Ready to play');
                 podcastTranscript.textContent = "Podcast ready ! Starting playback...";
-                playPodcastSequence(0);
+                playPodcastSequence();
                 btnPodcast.innerHTML = originalText;
                 btnPodcast.disabled = false;
             } else if (data.status === "error") {
                 clearInterval(pollInterval);
-                showToast(`Podcast Error: ${data.error}`, "error");
+                showToast(`Podcast Error: ${escapeHTML(data.error)}`, "error");
                 closePodcast();
                 btnPodcast.innerHTML = originalText;
                 btnPodcast.disabled = false;
@@ -1279,49 +1334,85 @@ async function pollPodcastStatus(originalText) {
 
 let currentPodcastAudio = null;
 
-function playPodcastSequence(index) {
-    if (index >= podcastPlaylist.length) {
-        podcastTranscript.textContent = "Thanks for listening!";
-        podcastAvatar.textContent = "👋";
+function playPodcastSequence() {
+    if (!podcastPlaylist || podcastPlaylist.length === 0) {
+        podcastTranscript.textContent = "Podcast unavailable.";
         return;
     }
 
-    currentPodcastIndex = index;
-    const segment = podcastPlaylist[index];
-
-    // Update UI
-    podcastTranscript.textContent = `"${segment.text}"`;
-    podcastAvatar.textContent = segment.speaker === "Jax" ? "😎" : "👩‍🏫";
-    podcastAvatar.style.background = segment.speaker === "Jax" ? "#FF6B6B" : "#4ECDC4";
-
+    currentPodcastIndex = 0;
+    const url = podcastPlaylist[0].url; // All segments share the same combined URL
+    
     // Play Audio
     if (currentPodcastAudio) {
         currentPodcastAudio.pause();
         currentPodcastAudio = null;
     }
-    currentPodcastAudio = new Audio(segment.url);
+    currentPodcastAudio = new Audio(url);
     currentPodcastAudio.play();
     const miniBtn = document.getElementById('btn-mini-play-podcast');
-    if (miniBtn) miniBtn.querySelector('.play-icon').textContent = "⏸";
+    if (miniBtn) miniBtn.querySelector('.play-icon').innerHTML = "<i data-lucide='pause' class='icon-filled'></i>";
+    
+    const podcastPlayerUi = document.getElementById('podcast-player-ui');
+    if (podcastPlayerUi) podcastPlayerUi.classList.add('playing');
 
     currentPodcastAudio.onended = () => {
-        if (index + 1 >= podcastPlaylist.length) {
-            if (miniBtn) miniBtn.querySelector('.play-icon').textContent = "▶";
-        }
-        playPodcastSequence(index + 1);
+        if (miniBtn) miniBtn.querySelector('.play-icon').innerHTML = "<i data-lucide='play' class='icon-filled'></i>";
+        if (podcastPlayerUi) podcastPlayerUi.classList.remove('playing');
+        podcastTranscript.textContent = "Thanks for listening!";
+        podcastAvatar.innerHTML = "<i data-lucide='hand'></i>";
+        const badge = document.getElementById('speaker-badge');
+        if (badge) badge.textContent = "System";
     };
 
-    // Update mini progress
+    // Update mini progress and sync transcript
     currentPodcastAudio.ontimeupdate = () => {
         if (!currentPodcastAudio.duration) return;
         const percent = (currentPodcastAudio.currentTime / currentPodcastAudio.duration) * 100;
         const miniProg = document.getElementById('mini-podcast-progress');
         if (miniProg) miniProg.style.width = `${percent}%`;
+        
+        // Sync transcript
+        const ct = currentPodcastAudio.currentTime;
+        let activeSegment = podcastPlaylist[podcastPlaylist.length - 1]; // Default to last
+        
+        for (let i = 0; i < podcastPlaylist.length; i++) {
+            const seg = podcastPlaylist[i];
+            if (ct >= seg.start && ct <= seg.end) {
+                activeSegment = seg;
+                currentPodcastIndex = i;
+                break;
+            }
+        }
+        
+        if (activeSegment && podcastTranscript.dataset.currentText !== activeSegment.text) {
+            podcastTranscript.dataset.currentText = activeSegment.text;
+            podcastTranscript.classList.add('text-transitioning');
+            
+            setTimeout(() => {
+                podcastTranscript.textContent = `"${activeSegment.text}"`;
+                podcastTranscript.classList.remove('text-transitioning');
+                
+                const badge = document.getElementById('speaker-badge');
+                if (badge) badge.textContent = activeSegment.speaker;
+                
+                const isJax = activeSegment.speaker === "Jax";
+                const color = isJax ? "#FF6B6B" : "#4ECDC4";
+                const glow = isJax ? "rgba(255, 107, 107, 0.4)" : "rgba(78, 205, 196, 0.4)";
+                
+                if (podcastPlayerUi) {
+                    podcastPlayerUi.style.setProperty('--speaker-color', color);
+                    podcastPlayerUi.style.setProperty('--speaker-glow', glow);
+                }
+                
+                podcastAvatar.innerHTML = isJax ? "🎙️" : "🎧";
+            }, 150);
+        }
     };
 
     currentPodcastAudio.onerror = () => {
-        console.error("Audio segment failed, skipping...");
-        playPodcastSequence(index + 1);
+        console.error("Audio playback failed.");
+        podcastTranscript.textContent = "Failed to load audio.";
     };
 }
 
@@ -1588,12 +1679,19 @@ async function startImmersiveMode() {
         const storyData = await storyRes.json();
         const scenes = storyData.scenes || []; // I need to ensure server returns this
 
-        immersiveScenes = scenes.map((scene, i) => ({
-            image: `/api/assets/visuals/image_01_scene_${String(i + 1).padStart(2, '0')}.jpg`,
-            audio: data.audio_urls[i],
-            text: scene.excerpt || scene.description || "Scene " + (i + 1),
-            narrator: scene.narrator_intro || ""
-        }));
+        // Find scene images from storyData.images
+        const sceneImages = (storyData.images || []).filter(img => img.includes('scene_')).sort();
+
+        immersiveScenes = scenes.map((scene, i) => {
+            // Use Supabase URL if available, fallback to local convention
+            const imgUrl = (sceneImages && sceneImages[i]) ? sceneImages[i] : `/api/assets/visuals/image_01_scene_${String(i + 1).padStart(2, '0')}.jpg`;
+            return {
+                image: imgUrl,
+                audio: data.audio_urls[i],
+                text: scene.excerpt || scene.description || "Scene " + (i + 1),
+                narrator: scene.narrator_intro || ""
+            };
+        });
 
         if (immersiveScenes.length === 0) {
             textEl.textContent = "No scenes found. Please analyze the book first.";
@@ -1865,16 +1963,17 @@ function renderLibrary() {
 
         let thumbContent = `
             <div class="book-thumbnail no-image">
-                <div class="poster-placeholder-text">${book.title}</div>
+                <div class="poster-placeholder-text">${escapeHTML(book.title)}</div>
                 <div style="font-size: 3rem; opacity: 0.3;">📖</div>
                 <div style="font-size: 0.8rem; opacity: 0.5; margin-top: 0.5rem;">Cover generating...</div>
             </div>
         `;
 
         if (book.thumbnail) {
+            const thumbUrl = book.thumbnail.startsWith('http') ? book.thumbnail : `/api/assets/${book.thumbnail}`;
             thumbContent = `
                 <div class="book-thumbnail">
-                    <img src="/api/assets/${book.thumbnail}" alt="${book.title}" loading="lazy">
+                    <img src="${thumbUrl}" alt="${escapeHTML(book.title)}" loading="lazy">
                     <div class="book-actions-overlay">
                         <button class="btn-action-round" onclick="openBook('${book.id}')" title="Read Book">▶</button>
                         <button class="btn-action-round" onclick="deleteBook('${book.id}')" style="background: rgba(239, 69, 101, 0.2); border-color: var(--danger);" title="Delete">×</button>
@@ -1884,7 +1983,7 @@ function renderLibrary() {
         } else {
             thumbContent = `
                 <div class="book-thumbnail no-image">
-                    <div class="poster-placeholder-text">${book.title}</div>
+                    <div class="poster-placeholder-text">${escapeHTML(book.title)}</div>
                     <div style="font-size: 3rem; opacity: 0.3;">📖</div>
                     <div style="font-size: 0.8rem; opacity: 0.5; margin-top: 0.5rem;">Cover generating...</div>
                     <div class="book-actions-overlay">
@@ -1899,8 +1998,8 @@ function renderLibrary() {
             ${thumbContent}
             
             <div class="book-content">
-                <h3 class="book-title" title="${book.title}">${book.title}</h3>
-                <p class="book-author">${book.author}</p>
+                <h3 class="book-title" title="${escapeHTML(book.title)}">${escapeHTML(book.title)}</h3>
+                <p class="book-author">${escapeHTML(book.author)}</p>
                 
                 <div class="book-footer">
                     <span class="book-date">${date}</span>
@@ -2021,7 +2120,7 @@ function showToast(message, type = 'info') {
     if (type === 'success') icon = '✅';
     if (type === 'error') icon = '❌';
 
-    toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
+    toast.innerHTML = `<span>${icon}</span> <span>${escapeHTML(message)}</span>`;
 
     container.appendChild(toast);
 
@@ -2288,7 +2387,7 @@ function pollForPortrait(url, index, attempts = 0) {
 }
 
 async function viewCharacterSheet(name) {
-    showToast(`Generating character sheet for ${name}...`, "info");
+    showToast(`Generating character sheet for ${escapeHTML(name)}...`, "info");
 
     try {
         const res = await fetch(`${API_BASE}/character/${encodeURIComponent(name)}/sheet`);
@@ -2864,7 +2963,7 @@ async function openAmbientMusicPicker() {
 
                 item.innerHTML = `
                     <div style="display: flex; flex-direction: column;">
-                        <span style="font-weight: 600;">${track.title || track.id}</span>
+                        <span style="font-weight: 600;">${escapeHTML(track.title || track.id)}</span>
                         <span style="font-size: 0.75rem; color: var(--text-muted);">Ambient Track</span>
                     </div>
                     <span class="music-status">${currentMusicId === track.id ? 'Selected' : ''}</span>
@@ -2990,12 +3089,15 @@ function updateMiniPlayerStatus(type, status) {
 
 function togglePodcastPlayback() {
     if (currentPodcastAudio) {
+        const podcastPlayerUi = document.getElementById('podcast-player-ui');
         if (currentPodcastAudio.paused) {
             currentPodcastAudio.play();
-            document.getElementById('btn-mini-play-podcast').querySelector('.play-icon').textContent = "⏸";
+            document.getElementById('btn-mini-play-podcast').querySelector('.play-icon').innerHTML = "<i data-lucide='pause' class='icon-filled'></i>";
+            if (podcastPlayerUi) podcastPlayerUi.classList.add('playing');
         } else {
             currentPodcastAudio.pause();
-            document.getElementById('btn-mini-play-podcast').querySelector('.play-icon').textContent = "▶";
+            document.getElementById('btn-mini-play-podcast').querySelector('.play-icon').innerHTML = "<i data-lucide='play' class='icon-filled'></i>";
+            if (podcastPlayerUi) podcastPlayerUi.classList.remove('playing');
         }
     } else {
         generatePodcast();
@@ -3015,3 +3117,30 @@ window.toggleVisualMode = toggleVisualMode;
 window.togglePodcastPlayback = togglePodcastPlayback;
 window.seekAudio = seekAudio;
 window.updateMiniPlayerStatus = updateMiniPlayerStatus;
+
+// Navigation Hamburger Menu
+function toggleMenu() {
+    const navLinks = document.querySelector('.nav-links');
+    const hamburger = document.querySelector('.hamburger');
+    if (navLinks && hamburger) {
+        navLinks.classList.toggle('active');
+        hamburger.classList.toggle('active');
+    }
+}
+
+
+
+// Auto-initialize Lucide icons for dynamically added elements
+const observer = new MutationObserver((mutations) => {
+    let shouldUpdate = false;
+    for (let mutation of mutations) {
+        if (mutation.addedNodes.length > 0) {
+            shouldUpdate = true;
+            break;
+        }
+    }
+    if (shouldUpdate && window.lucide) {
+        window.lucide.createIcons();
+    }
+});
+observer.observe(document.body, { childList: true, subtree: true });

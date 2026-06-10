@@ -128,16 +128,75 @@ async def generate_podcast_task(podcast_text: str, book_id: Optional[int], analy
         
         print(f"SUCCESS: Audio generated: {len(audio_files)} files")
         
-        # 3. Prepare playlist
+        # 3. Combine audio segments and prepare playlist
         playlist = []
-        for i, filename in enumerate(audio_files):
-            if i < len(script):
-                speaker = script[i]["speaker"]
-                playlist.append({
-                    "speaker": speaker,
-                    "text": script[i]["text"],
-                    "url": f"/api/assets/podcast/{filename}"
-                })
+        from src.storage import upload_file_to_supabase
+        from moviepy import AudioFileClip, concatenate_audioclips
+        
+        try:
+            print("--- Step 3: Combining audio segments... ---")
+            clips = []
+            current_time = 0.0
+            
+            for i, filename in enumerate(audio_files):
+                local_path = os.path.join(podcast_dir, filename)
+                clip = AudioFileClip(local_path)
+                clips.append(clip)
+                
+                if i < len(script):
+                    speaker = script[i]["speaker"]
+                    playlist.append({
+                        "speaker": speaker,
+                        "text": script[i]["text"],
+                        "start": current_time,
+                        "end": current_time + clip.duration
+                    })
+                current_time += clip.duration
+                
+            # Combine all clips
+            combined_clip = concatenate_audioclips(clips)
+            
+            # Determine book title for filename
+            safe_title = "Unknown_Book"
+            if state.ingestion_result:
+                title = state.ingestion_result.get("title", state.ingestion_result.get("filename", "Unknown"))
+                safe_title = "".join([c if c.isalnum() else "_" for c in title])[:30]
+            
+            combined_filename = f"podcast_{book_id}_{safe_title}.mp3" if book_id else f"podcast_{safe_title}.mp3"
+            combined_path = os.path.join(podcast_dir, combined_filename)
+            
+            # Write out combined file
+            combined_clip.write_audiofile(combined_path, logger=None)
+            
+            # Close clips to free resources
+            for clip in clips:
+                clip.close()
+            combined_clip.close()
+            
+            # Upload combined file to Supabase
+            print(f"--- Step 4: Uploading combined podcast {combined_filename}... ---")
+            remote_filename = f"podcast/{combined_filename}"
+            podcast_url = upload_file_to_supabase("media", combined_path, remote_filename)
+            if podcast_url:
+                print(f"--- SUCCESS: Podcast uploaded to {podcast_url} ---")
+                
+                # Inject URL into the first segment so the frontend can play it
+                if playlist:
+                    playlist[0]["url"] = podcast_url
+            else:
+                print(f"WARNING: Failed to upload combined podcast to Supabase")
+                # Fallback to local server path
+                local_url = f"/api/assets/podcast/{combined_filename}"
+                if playlist:
+                    playlist[0]["url"] = local_url
+                
+        except Exception as e:
+            print(f"ERROR combining podcast audio: {e}")
+            import traceback
+            traceback.print_exc()
+            state.podcast_status = "error"
+            state.podcast_error = f"Audio combination failed: {str(e)}"
+            return
         
         # Save to library
         if book_id:
