@@ -8,6 +8,14 @@ from src.config import DATABASE_URL
 # Fallback to local sqlite if DATABASE_URL is not set
 _db_url = DATABASE_URL if DATABASE_URL else "sqlite:///./library.db"
 
+# Sanitize Supabase connection string for SQLAlchemy/psycopg2
+if _db_url.startswith("postgres://"):
+    _db_url = _db_url.replace("postgres://", "postgresql://", 1)
+if "?pgbouncer=true" in _db_url:
+    _db_url = _db_url.replace("?pgbouncer=true", "")
+if "&pgbouncer=true" in _db_url:
+    _db_url = _db_url.replace("&pgbouncer=true", "")
+
 # Engine
 if _db_url.startswith("sqlite"):
     engine = create_engine(_db_url, echo=False)
