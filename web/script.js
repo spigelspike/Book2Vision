@@ -90,6 +90,9 @@ const DEFAULT_SETTINGS = {
 // ============================================
 
 function init() {
+    if (window.lucide) {
+        window.lucide.createIcons();
+    }
     console.log('Script initialized');
     setupEventListeners();
     // Initialize settings if not present

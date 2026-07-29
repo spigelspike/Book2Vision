@@ -102,77 +102,74 @@
 
         <!-- Hero / Upload Section -->
 
-        <section id="hero" class="container fade-in">
+                <section id="hero" class="hero-centered fade-in">
+            <!-- Dynamic Background Glow -->
+            <div class="hero-bg-glow"></div>
 
-            <div class="hero-content">
-
-                <h1>Read, Listen, <br> and Watch</h1>
-
-                <p>Upload a book and automatically generate an audio podcast and visual scenes.</p>
-
-
-
-                <div class="upload-zone glass" id="drop-zone" role="button" tabindex="0" aria-label="Upload book area">
-
-                    <div class="upload-icon" aria-hidden="true">🗁</div>
-
-                    <h3>Drag & Drop your book here</h3>
-
-                    <p>Supports PDF, EPUB, TXT</p>
-
-                    <input type="file" id="file-input" hidden accept=".pdf,.epub,.txt" aria-label="File upload">
-
-                    <button class="btn-primary" onclick="document.getElementById('file-input').click()">Browse
-
-                        Files</button>
-
-                </div>
-
-
-
-                <div id="upload-status" class="hidden fade-in" aria-live="polite">
-
-                    <!-- Custom Book Loader -->
-
-                    <div class="book">
-
-                        <div class="book__pg-shadow"></div>
-
-                        <div class="book__pg"></div>
-
-                        <div class="book__pg book__pg--2"></div>
-
-                        <div class="book__pg book__pg--3"></div>
-
-                        <div class="book__pg book__pg--4"></div>
-
-                        <div class="book__pg book__pg--5"></div>
-
+            <div class="hero-content-main">
+                <div class="hero-badge">Book2Vision Studio</div>
+                <h1 class="hero-title">Bring Your Books to <br><span class="hero-gradient-text">Life</span></h1>
+                <p class="hero-description">Upload a book and automatically generate an immersive audio podcast, character portraits, and visual scenes.</p>
+                
+                <div class="upload-wrapper-centered">
+                    <div class="upload-zone-premium glass" id="drop-zone" role="button" tabindex="0" aria-label="Upload book area">
+                        <div class="upload-icon-pulse">
+                            <!-- Inline SVG for Cloud Upload -->
+                            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"></path>
+                                <path d="M12 12v9"></path>
+                                <path d="m16 16-4-4-4 4"></path>
+                            </svg>
+                        </div>
+                        <h3>Drag & Drop your book here</h3>
+                        <p class="upload-formats">Supports PDF, EPUB, TXT</p>
+                        <div class="or-separator-premium"><span>OR</span></div>
+                        <input type="file" id="file-input" hidden accept=".pdf,.epub,.txt" aria-label="File upload">
+                        <button class="btn-browse-premium" onclick="document.getElementById('file-input').click()">Browse Files</button>
                     </div>
 
+                    <div id="upload-status" class="upload-status-premium hidden fade-in" aria-live="polite">
+                        <!-- Custom Book Loader -->
+                        <div class="book">
+                            <div class="book__pg-shadow"></div>
+                            <div class="book__pg"></div>
+                            <div class="book__pg book__pg--2"></div>
+                            <div class="book__pg book__pg--3"></div>
+                            <div class="book__pg book__pg--4"></div>
+                            <div class="book__pg book__pg--5"></div>
+                        </div>
 
+                        <!-- Upload progress bar -->
+                        <div class="upload-progress-container-premium" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                            <div class="upload-progress-bar-premium" id="upload-progress-bar"></div>
+                        </div>
+                        <p class="upload-progress-text" id="upload-progress-text">0%</p>
 
-                    <!-- Upload progress bar -->
-
-                    <div class="upload-progress-container" role="progressbar" aria-valuemin="0" aria-valuemax="100"
-                        aria-valuenow="0">
-
-                        <div class="upload-progress-bar" id="upload-progress-bar"></div>
-
+                        <p class="upload-status-title" id="upload-status-title">Uploading your book...</p>
+                        <p class="status-detail-premium" id="status-detail">Preparing file...</p>
                     </div>
-
-                    <p class="upload-progress-text" id="upload-progress-text">0%</p>
-
-
-
-                    <p style="margin-top: 1rem; font-weight: 500;" id="upload-status-title">Uploading your book...</p>
-
-                    <p class="status-detail" id="status-detail">Preparing file...</p>
-
                 </div>
 
+                <!-- Feature Chips Container -->
+                <div class="feature-chips-container">
+                    <div class="feature-chip">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                        <span>Deep Analysis</span>
+                    </div>
+                    <div class="feature-chip">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg>
+                        <span>AI Audiobook</span>
+                    </div>
+                    <div class="feature-chip">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                        <span>Visual Scenes</span>
+                    </div>
+                    <div class="feature-chip">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
+                        <span>Podcast Ready</span>
+                    </div>
+                </div>
             </div>
-
         </section>
 
 

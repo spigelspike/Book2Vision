@@ -445,14 +445,8 @@ def get_cached_character_visuals() -> dict:
     return _character_visual_cache.copy()
 
 async def _generate_entity_with_fallback(prompt, output_path, description, seed):
-    """Helper function to try deAPI first, then fallback to Pollinations."""
-    # Try deAPI first (it manages its own session)
-    deapi_result = await _generate_image_with_deapi(prompt, output_path, description)
-    if deapi_result:
-        return deapi_result
-        
-    # If deAPI fails, fallback to Pollinations
-    print(f" Falling back to Pollinations for {description}...")
+    """Helper function to use Pollinations for entity generation."""
+    print(f" Using Pollinations for {description}...")
     async with aiohttp.ClientSession(headers=DEFAULT_HEADERS) as session:
         encoded_prompt = urllib.parse.quote(prompt[:500])
         encoded_negative = urllib.parse.quote(NEGATIVE_PROMPT)
